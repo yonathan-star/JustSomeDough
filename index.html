@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Just Some Dough | Small Batch Sourdough</title>
+    <meta
+      name="description"
+      content="Small-batch sourdough loaves baked weekly. Browse flavors and place a preorder for Just Some Dough."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="Just Some Dough home">
+        <span class="brand-mark">JSD</span>
+        <span>Just Some Dough</span>
+      </a>
+      <nav aria-label="Primary navigation">
+        <a href="#menu">Menu</a>
+        <a href="#process">How it works</a>
+        <a href="#order">Order</a>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-media">
+          <img src="Snapchat-1276294950.jpg" alt="A table filled with wrapped sourdough loaves ready for pickup" />
+        </div>
+        <div class="hero-copy">
+          <p class="eyebrow">Small batches. Big flavors.</p>
+          <h1 id="hero-title">Just Some Dough</h1>
+          <p>
+            Weekly sourdough preorders baked in small batches, wrapped fresh, and ready for pickup.
+          </p>
+          <div class="hero-actions">
+            <a class="button primary" href="#order">Place an order</a>
+            <a class="button secondary" href="#menu">See this week&apos;s loaves</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="intro" aria-label="Bakery highlights">
+        <div>
+          <span class="stat">48 hr</span>
+          <span>slow fermentation</span>
+        </div>
+        <div>
+          <span class="stat">weekly</span>
+          <span>fresh preorder batches</span>
+        </div>
+        <div>
+          <span class="stat">local</span>
+          <span>pickup or delivery notes</span>
+        </div>
+      </section>
+
+      <section class="section split" id="process" aria-labelledby="process-title">
+        <div>
+          <p class="eyebrow">From starter to slice</p>
+          <h2 id="process-title">Naturally leavened, baked around the week&apos;s orders.</h2>
+          <p>
+            Orders are grouped by week so each batch can be planned around actual demand. Pick your flavors,
+            choose a preferred pickup day, and the order is sent straight to the bakery sheet.
+          </p>
+          <ul class="steps">
+            <li><span>1</span>Pick your loaves and quantities.</li>
+            <li><span>2</span>Choose a preferred pickup or delivery window.</li>
+            <li><span>3</span>Get confirmation from the baker once your order is reviewed.</li>
+          </ul>
+        </div>
+        <div class="process-grid">
+          <img src="Snapchat-1804780126.jpg" alt="A large batch of sourdough dough being prepared on a kitchen island" />
+          <img src="Snapchat-1793413218.jpg" alt="Sliced sourdough showing an airy crumb on a cutting board" />
+        </div>
+      </section>
+
+      <section class="section" id="menu" aria-labelledby="menu-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Current menu</p>
+            <h2 id="menu-title">Preorder this week&apos;s sourdough</h2>
+          </div>
+          <p>
+            Product photos can be swapped in later. For now, each item uses the available bakery photos.
+          </p>
+        </div>
+        <div class="product-grid" id="productGrid" aria-live="polite"></div>
+      </section>
+
+      <section class="section gallery" aria-labelledby="gallery-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Batch notes</p>
+            <h2 id="gallery-title">A look inside the bake</h2>
+          </div>
+        </div>
+        <div class="gallery-grid">
+          <img src="Snapchat-2127436635.jpg" alt="Chocolate chip sourdough dough resting on a kitchen counter" />
+          <img src="Snapchat-856069574.jpg" alt="Chocolate sourdough loaf cut open to show the crumb" />
+          <img src="Snapchat-830501156.jpg" alt="Just Some Dough logo concept displayed on a phone" />
+        </div>
+      </section>
+
+      <section class="section order-section" id="order" aria-labelledby="order-title">
+        <div class="order-copy">
+          <p class="eyebrow">Order form</p>
+          <h2 id="order-title">Reserve your loaves</h2>
+          <p>
+            Add items from the menu, fill in your contact details, and submit. Once the Google Apps Script URL is added,
+            every order will be written to the connected Google Sheet and tagged by week.
+          </p>
+          <div class="cart-summary" aria-live="polite">
+            <h3>Your order</h3>
+            <div id="cartItems" class="cart-items empty">No loaves selected yet.</div>
+            <div class="cart-total">
+              <span>Total</span>
+              <strong id="cartTotal">$0</strong>
+            </div>
+          </div>
+        </div>
+
+        <form id="orderForm" class="order-form">
+          <label>
+            Name
+            <input name="name" autocomplete="name" required />
+          </label>
+          <label>
+            Phone
+            <input name="phone" autocomplete="tel" required />
+          </label>
+          <label>
+            Email
+            <input name="email" type="email" autocomplete="email" />
+          </label>
+          <label>
+            Preferred date
+            <input name="preferredDate" type="date" required />
+          </label>
+          <label>
+            Pickup or delivery
+            <select name="fulfillment" required>
+              <option value="">Choose one</option>
+              <option>Pickup</option>
+              <option>Delivery request</option>
+            </select>
+          </label>
+          <label>
+            Notes
+            <textarea name="notes" rows="4" placeholder="Flavor questions, delivery address, allergies, timing..."></textarea>
+          </label>
+          <input type="hidden" name="orderWeek" id="orderWeek" />
+          <input type="hidden" name="items" id="orderItems" />
+          <input type="hidden" name="total" id="orderTotal" />
+          <button class="button primary submit-button" type="submit">Submit order</button>
+          <p class="form-status" id="formStatus" role="status"></p>
+        </form>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span>Just Some Dough</span>
+      <span>Good dough. Good day.</span>
+    </footer>
+
+    <script src="app.js"></script>
+  </body>
+</html>
