@@ -59,15 +59,11 @@ a {
 }
 
 .brand-mark {
-  display: grid;
   width: 42px;
   height: 42px;
-  place-items: center;
   border: 1px solid var(--crust);
   border-radius: 50%;
-  color: var(--crust-dark);
-  font-size: 0.72rem;
-  letter-spacing: 0;
+  object-fit: cover;
 }
 
 nav {
