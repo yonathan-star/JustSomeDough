@@ -88,9 +88,6 @@
             <p class="eyebrow">Current menu</p>
             <h2 id="menu-title">Preorder this week&apos;s sourdough</h2>
           </div>
-          <p>
-            Product photos can be swapped in later. For now, each item uses the available bakery photos.
-          </p>
         </div>
         <div class="product-grid" id="productGrid" aria-live="polite"></div>
       </section>
@@ -98,14 +95,14 @@
       <section class="section gallery" aria-labelledby="gallery-title">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">Batch notes</p>
+            <p class="eyebrow">Fresh bakes</p>
             <h2 id="gallery-title">A look inside the bake</h2>
           </div>
         </div>
         <div class="gallery-grid">
           <img src="Snapchat-2127436635.jpg" alt="Chocolate chip sourdough dough resting on a kitchen counter" />
           <img src="Snapchat-856069574.jpg" alt="Chocolate sourdough loaf cut open to show the crumb" />
-          <img src="Snapchat-1276294950.jpg" alt="Wrapped sourdough loaves organized for weekly pickup" />
+          <img src="Snapchat-830501156.jpg" alt="Just Some Dough logo concept displayed on a phone" />
         </div>
       </section>
 
@@ -114,8 +111,8 @@
           <p class="eyebrow">Order form</p>
           <h2 id="order-title">Reserve your loaves</h2>
           <p>
-            Add items from the menu, fill in your contact details, and submit. Once the Google Apps Script URL is added,
-            every Sunday pickup order will be written to the connected Google Sheet and tagged by week.
+            Add items from the menu, fill in your contact details, and submit. Every Sunday pickup order
+            will be written to the connected Google Sheet and tagged by week.
           </p>
           <div class="cart-summary" aria-live="polite">
             <h3>Your order</h3>
@@ -145,10 +142,6 @@
             <input name="preferredDate" type="date" required />
           </label>
           <input type="hidden" name="fulfillment" value="Sunday pickup" />
-          <label>
-            Notes
-            <textarea name="notes" rows="4" placeholder="Flavor questions, allergies, pickup timing..."></textarea>
-          </label>
           <input type="hidden" name="items" id="orderItems" />
           <input type="hidden" name="total" id="orderTotal" />
           <button class="button primary submit-button" type="submit">Submit order</button>

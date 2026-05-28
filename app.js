@@ -2,8 +2,8 @@ const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwUe5PVjXh39i
 
 const products = [
   {
-    id: "classic-country",
-    name: "Classic Country",
+    id: "regular-sourdough",
+    name: "Regular Sourdough",
     price: 12,
     image: "Snapchat-1793413218.jpg",
     description: "A naturally leavened loaf with a crisp crust and open, chewy crumb.",
@@ -11,30 +11,37 @@ const products = [
   {
     id: "chocolate-chip",
     name: "Chocolate Chip",
-    price: 14,
+    price: 15,
     image: "Snapchat-856069574.jpg",
     description: "A sweet sourdough loaf folded with chocolate chips for breakfast or dessert.",
   },
   {
-    id: "cinnamon-raisin",
-    name: "Cinnamon Raisin",
-    price: 14,
-    image: "Snapchat-1793413218.jpg",
-    description: "A cozy loaf with cinnamon warmth and a softer slice for toast.",
+    id: "general",
+    name: "General",
+    price: 15,
+    image: "Snapchat-2127436635.jpg",
+    description: "A fresh sourdough loaf baked with the week's classic dough.",
   },
   {
-    id: "rosemary-garlic",
-    name: "Rosemary Garlic",
+    id: "garlic-rosemary",
+    name: "Garlic Rosemary",
     price: 15,
     image: "Snapchat-1804780126.jpg",
     description: "Savory sourdough made for dinner boards, soups, and sandwiches.",
   },
   {
-    id: "blueberry",
-    name: "Blueberry",
-    price: 13,
+    id: "blueberry-lemon",
+    name: "Blueberry Lemon",
+    price: 15,
     image: "Snapchat-1276294950.jpg",
-    description: "A fruit-forward sourdough loaf with blueberry folded through the crumb.",
+    description: "Bright lemon and blueberry folded into a tender sourdough loaf.",
+  },
+  {
+    id: "olive",
+    name: "Olive",
+    price: 15,
+    image: "Snapchat-830501156.jpg",
+    description: "A savory olive sourdough loaf with a briny, rich finish.",
   },
 ];
 
