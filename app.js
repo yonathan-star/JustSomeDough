@@ -16,13 +16,6 @@ const products = [
     description: "A sweet sourdough loaf folded with chocolate chips for breakfast or dessert.",
   },
   {
-    id: "general",
-    name: "General",
-    price: 15,
-    image: "Snapchat-2127436635.jpg",
-    description: "A fresh sourdough loaf baked with the week's classic dough.",
-  },
-  {
     id: "garlic-rosemary",
     name: "Garlic Rosemary",
     price: 15,
@@ -33,14 +26,14 @@ const products = [
     id: "blueberry-lemon",
     name: "Blueberry Lemon",
     price: 15,
-    image: "Snapchat-1276294950.jpg",
+    image: "",
     description: "Bright lemon and blueberry folded into a tender sourdough loaf.",
   },
   {
     id: "olive",
     name: "Olive",
     price: 15,
-    image: "Snapchat-830501156.jpg",
+    image: "",
     description: "A savory olive sourdough loaf with a briny, rich finish.",
   },
 ];
@@ -65,7 +58,11 @@ function renderProducts() {
     .map(
       (product) => `
         <article class="product-card">
-          <img src="${product.image}" alt="${product.name} sourdough loaf preview" />
+          ${
+            product.image
+              ? `<img src="${product.image}" alt="${product.name} sourdough loaf preview" />`
+              : `<div class="product-image-placeholder" aria-hidden="true"></div>`
+          }
           <div class="product-body">
             <div class="product-meta">
               <h3>${product.name}</h3>

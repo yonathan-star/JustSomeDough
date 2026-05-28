@@ -327,6 +327,11 @@ h3 {
   box-shadow: none;
 }
 
+.product-image-placeholder {
+  height: 210px;
+  background: var(--panel);
+}
+
 .product-body {
   display: grid;
   gap: 12px;
@@ -382,7 +387,7 @@ h3 {
 }
 
 .gallery-grid {
-  grid-template-columns: 1.1fr 1fr 0.8fr;
+  grid-template-columns: 1fr 1fr;
 }
 
 .gallery-grid img {
