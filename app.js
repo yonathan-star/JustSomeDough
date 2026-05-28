@@ -26,7 +26,7 @@ const products = [
     id: "blueberry-lemon",
     name: "Blueberry Lemon",
     price: 15,
-    image: "",
+    image: "blueberry-lemon.jpg",
     description: "Bright lemon and blueberry folded into a tender sourdough loaf.",
   },
   {
