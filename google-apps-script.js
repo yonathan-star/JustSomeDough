@@ -1,6 +1,12 @@
 const SHEET_NAME = "Orders";
 
 function doPost(e) {
+  if (!e || !e.parameter) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: false, error: "No form data received. Submit from the website or run testOrder()." }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
   const sheet = getOrdersSheet();
   const data = e.parameter;
 
@@ -66,4 +72,25 @@ function sortOrders(sheet) {
       { column: 2, ascending: true },
       { column: 1, ascending: true },
     ]);
+}
+
+function setupOrdersSheet() {
+  getOrdersSheet();
+}
+
+function testOrder() {
+  return doPost({
+    parameter: {
+      orderWeek: "TEST-WEEK",
+      preferredWeek: "TEST-PREFERRED-WEEK",
+      name: "Test Customer",
+      phone: "555-555-5555",
+      email: "test@example.com",
+      fulfillment: "Sunday pickup",
+      preferredDate: "2026-05-31",
+      items: "1 x Classic Country",
+      total: "12",
+      notes: "Test order from Apps Script.",
+    },
+  });
 }
