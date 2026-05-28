@@ -1,4 +1,4 @@
-const GOOGLE_SCRIPT_URL = "";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwVmGo9moyjzatsa5T0zL46uS2zWCMjVIhf09tbSQu9EO6ldB5LNcP1dxXLUlW49S_6wQ/exec";
 
 const products = [
   {
@@ -19,7 +19,7 @@ const products = [
     id: "cinnamon-raisin",
     name: "Cinnamon Raisin",
     price: 14,
-    image: "Snapchat-2127436635.jpg",
+    image: "Snapchat-1793413218.jpg",
     description: "A cozy loaf with cinnamon warmth and a softer slice for toast.",
   },
   {
@@ -30,11 +30,11 @@ const products = [
     description: "Savory sourdough made for dinner boards, soups, and sandwiches.",
   },
   {
-    id: "bakers-choice",
-    name: "Baker's Choice",
+    id: "blueberry",
+    name: "Blueberry",
     price: 13,
     image: "Snapchat-1276294950.jpg",
-    description: "A weekly flavor picked around what is fresh, seasonal, or requested most.",
+    description: "A fruit-forward sourdough loaf with blueberry folded through the crumb.",
   },
 ];
 
@@ -124,20 +124,32 @@ function getOrderWeek(date = new Date()) {
   return `${utcDate.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
 }
 
+function getNextSunday(date = new Date()) {
+  const nextSunday = new Date(date);
+  nextSunday.setHours(12, 0, 0, 0);
+  const daysUntilSunday = (7 - nextSunday.getDay()) % 7 || 7;
+  nextSunday.setDate(nextSunday.getDate() + daysUntilSunday);
+  return nextSunday;
+}
+
+function isSunday(dateString) {
+  if (!dateString) return false;
+  return new Date(`${dateString}T12:00:00`).getDay() === 0;
+}
+
 function setDefaultDate() {
   const dateInput = orderForm.elements.preferredDate;
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
   dateInput.min = new Date().toISOString().slice(0, 10);
-  dateInput.value = tomorrow.toISOString().slice(0, 10);
-  orderWeekInput.value = getOrderWeek(new Date(dateInput.value));
+  dateInput.value = getNextSunday().toISOString().slice(0, 10);
+  orderWeekInput.value = getOrderWeek(new Date(`${dateInput.value}T12:00:00`));
 }
 
 function buildPayload() {
   const formData = new FormData(orderForm);
   formData.set("submittedAt", new Date().toISOString());
   formData.set("orderWeek", getOrderWeek(new Date()));
-  formData.set("preferredWeek", getOrderWeek(new Date(formData.get("preferredDate"))));
+  formData.set("fulfillment", "Sunday pickup");
+  formData.set("preferredWeek", getOrderWeek(new Date(`${formData.get("preferredDate")}T12:00:00`)));
   formData.set("items", orderItemsInput.value);
   formData.set("total", orderTotalInput.value);
   return formData;
@@ -158,7 +170,14 @@ productGrid.addEventListener("click", (event) => {
 });
 
 orderForm.elements.preferredDate.addEventListener("change", (event) => {
-  orderWeekInput.value = getOrderWeek(new Date(event.target.value));
+  if (!isSunday(event.target.value)) {
+    formStatus.textContent = "Pickup is only available on Sundays. Please choose a Sunday.";
+    event.target.value = getNextSunday(new Date(`${event.target.value}T12:00:00`)).toISOString().slice(0, 10);
+  } else {
+    formStatus.textContent = "";
+  }
+
+  orderWeekInput.value = getOrderWeek(new Date(`${event.target.value}T12:00:00`));
 });
 
 orderForm.addEventListener("submit", async (event) => {
@@ -166,6 +185,11 @@ orderForm.addEventListener("submit", async (event) => {
 
   if (!getCartLines().length) {
     formStatus.textContent = "Add at least one loaf before submitting.";
+    return;
+  }
+
+  if (!isSunday(orderForm.elements.preferredDate.value)) {
+    formStatus.textContent = "Pickup is only available on Sundays. Please choose a Sunday.";
     return;
   }
 
