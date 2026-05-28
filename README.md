@@ -18,7 +18,7 @@ This is a static preorder site for Just Some Dough. Open `index.html` in a brows
 const GOOGLE_SCRIPT_URL = "PASTE_WEB_APP_URL_HERE";
 ```
 
-Orders will be appended to the `Orders` tab and sorted by `Order Week`, then submission time. The website also sends a `Preferred Week` based on the preferred pickup date.
+Orders will be appended to the `Orders` tab and sorted by `Pickup Date`, then submission time. Pickup dates are shown as readable dates, such as `Sunday, May 31, 2026`.
 
 ## Updating products
 

@@ -44,7 +44,6 @@ const cartItems = document.querySelector("#cartItems");
 const cartTotal = document.querySelector("#cartTotal");
 const orderForm = document.querySelector("#orderForm");
 const formStatus = document.querySelector("#formStatus");
-const orderWeekInput = document.querySelector("#orderWeek");
 const orderItemsInput = document.querySelector("#orderItems");
 const orderTotalInput = document.querySelector("#orderTotal");
 
@@ -115,15 +114,6 @@ function updateCart() {
   orderTotalInput.value = String(total);
 }
 
-function getOrderWeek(date = new Date()) {
-  const utcDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const day = utcDate.getUTCDay() || 7;
-  utcDate.setUTCDate(utcDate.getUTCDate() + 4 - day);
-  const yearStart = new Date(Date.UTC(utcDate.getUTCFullYear(), 0, 1));
-  const week = Math.ceil(((utcDate - yearStart) / 86400000 + 1) / 7);
-  return `${utcDate.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
-}
-
 function getNextSunday(date = new Date()) {
   const nextSunday = new Date(date);
   nextSunday.setHours(12, 0, 0, 0);
@@ -141,15 +131,12 @@ function setDefaultDate() {
   const dateInput = orderForm.elements.preferredDate;
   dateInput.min = new Date().toISOString().slice(0, 10);
   dateInput.value = getNextSunday().toISOString().slice(0, 10);
-  orderWeekInput.value = getOrderWeek(new Date(`${dateInput.value}T12:00:00`));
 }
 
 function buildPayload() {
   const formData = new FormData(orderForm);
   formData.set("submittedAt", new Date().toISOString());
-  formData.set("orderWeek", getOrderWeek(new Date()));
   formData.set("fulfillment", "Sunday pickup");
-  formData.set("preferredWeek", getOrderWeek(new Date(`${formData.get("preferredDate")}T12:00:00`)));
   formData.set("items", orderItemsInput.value);
   formData.set("total", orderTotalInput.value);
   return formData;
@@ -177,7 +164,6 @@ orderForm.elements.preferredDate.addEventListener("change", (event) => {
     formStatus.textContent = "";
   }
 
-  orderWeekInput.value = getOrderWeek(new Date(`${event.target.value}T12:00:00`));
 });
 
 orderForm.addEventListener("submit", async (event) => {

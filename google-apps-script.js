@@ -9,16 +9,15 @@ function doPost(e) {
 
   const sheet = getOrdersSheet();
   const data = e.parameter;
+  const pickupDate = parseDateInput(data.preferredDate);
 
   const row = [
     new Date(),
-    data.orderWeek || "",
-    data.preferredWeek || "",
+    pickupDate || data.preferredDate || "",
     data.name || "",
     data.phone || "",
     data.email || "",
     data.fulfillment || "",
-    data.preferredDate || "",
     data.items || "",
     Number(data.total || 0),
     data.notes || "",
@@ -42,13 +41,11 @@ function getOrdersSheet() {
 
   const headers = [
     "Submitted At",
-    "Order Week",
-    "Preferred Week",
+    "Pickup Date",
     "Name",
     "Phone",
     "Email",
     "Fulfillment",
-    "Preferred Date",
     "Items",
     "Total",
     "Notes",
@@ -57,7 +54,13 @@ function getOrdersSheet() {
   if (sheet.getLastRow() === 0) {
     sheet.appendRow(headers);
     sheet.setFrozenRows(1);
+  } else {
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
   }
+
+  sheet.getRange("A:A").setNumberFormat("m/d/yyyy h:mm am/pm");
+  sheet.getRange("B:B").setNumberFormat("dddd, mmmm d, yyyy");
+  sheet.getRange("H:H").setNumberFormat("$0");
 
   return sheet;
 }
@@ -74,6 +77,19 @@ function sortOrders(sheet) {
     ]);
 }
 
+function parseDateInput(value) {
+  if (!value) return null;
+  const parts = String(value).split("-");
+  if (parts.length !== 3) return null;
+
+  const year = Number(parts[0]);
+  const month = Number(parts[1]) - 1;
+  const day = Number(parts[2]);
+
+  if (!year || month < 0 || !day) return null;
+  return new Date(year, month, day, 12, 0, 0);
+}
+
 function setupOrdersSheet() {
   getOrdersSheet();
 }
@@ -81,8 +97,6 @@ function setupOrdersSheet() {
 function testOrder() {
   return doPost({
     parameter: {
-      orderWeek: "TEST-WEEK",
-      preferredWeek: "TEST-PREFERRED-WEEK",
       name: "Test Customer",
       phone: "555-555-5555",
       email: "test@example.com",
