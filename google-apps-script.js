@@ -1,34 +1,102 @@
 const SHEET_NAME = "Orders";
+const MAX_ORDERS_PER_WEEK = 40;
 
 function doPost(e) {
+  return handleOrderRequest(e);
+}
+
+function doGet(e) {
+  return handleOrderRequest(e);
+}
+
+function handleOrderRequest(e) {
   if (!e || !e.parameter) {
-    return ContentService
-      .createTextOutput(JSON.stringify({ ok: false, error: "No form data received. Submit from the website or run testOrder()." }))
-      .setMimeType(ContentService.MimeType.JSON);
+    return createResponse({ ok: false, error: "No form data received. Submit from the website or run testOrder()." });
   }
 
-  const sheet = getOrdersSheet();
-  const data = e.parameter;
-  const pickupDate = parseDateInput(data.preferredDate);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
 
-  const row = [
-    new Date(),
-    pickupDate || data.preferredDate || "",
-    data.name || "",
-    data.phone || "",
-    data.email || "",
-    data.fulfillment || "",
-    data.items || "",
-    Number(data.total || 0),
-    data.notes || "",
-  ];
+  try {
+    const sheet = getOrdersSheet();
+    const data = e.parameter;
+    const pickupDate = parseDateInput(data.preferredDate);
 
-  sheet.appendRow(row);
-  sortOrders(sheet);
+    if (!pickupDate) {
+      return createResponse({ ok: false, error: "Choose a valid pickup date." }, data.callback);
+    }
+
+    const currentOrders = countOrdersForPickupDate(sheet, pickupDate);
+    if (currentOrders >= MAX_ORDERS_PER_WEEK) {
+      return createResponse(
+        {
+          ok: false,
+          error: "This pickup week is full. Please choose another Sunday.",
+          code: "WEEK_FULL",
+          limit: MAX_ORDERS_PER_WEEK,
+          currentOrders,
+        },
+        data.callback,
+      );
+    }
+
+    const row = [
+      new Date(),
+      pickupDate || data.preferredDate || "",
+      data.name || "",
+      data.phone || "",
+      data.email || "",
+      data.fulfillment || "",
+      data.items || "",
+      Number(data.total || 0),
+      data.notes || "",
+    ];
+
+    sheet.appendRow(row);
+    sortOrders(sheet);
+
+    return createResponse(
+      {
+        ok: true,
+        limit: MAX_ORDERS_PER_WEEK,
+        currentOrders: currentOrders + 1,
+      },
+      data.callback,
+    );
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function createResponse(payload, callback) {
+  if (callback && /^[A-Za-z_$][\w$]*$/.test(callback)) {
+    return ContentService
+      .createTextOutput(`${callback}(${JSON.stringify(payload)});`)
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
 
   return ContentService
-    .createTextOutput(JSON.stringify({ ok: true }))
+    .createTextOutput(JSON.stringify(payload))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+function countOrdersForPickupDate(sheet, pickupDate) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return 0;
+
+  const values = sheet.getRange(2, 2, lastRow - 1, 1).getValues();
+  return values.filter(([value]) => isSameDate(value, pickupDate)).length;
+}
+
+function isSameDate(value, date) {
+  const parsed = value instanceof Date ? value : parseDateInput(value);
+  if (!parsed || !date) return false;
+
+  return (
+    parsed.getFullYear() === date.getFullYear() &&
+    parsed.getMonth() === date.getMonth() &&
+    parsed.getDate() === date.getDate()
+  );
 }
 
 function getOrdersSheet() {
@@ -102,9 +170,8 @@ function testOrder() {
       email: "test@example.com",
       fulfillment: "Sunday pickup",
       preferredDate: "2026-05-31",
-      items: "1 x Classic Country",
+      items: "1 x Regular Sourdough",
       total: "12",
-      notes: "Test order from Apps Script.",
     },
   });
 }

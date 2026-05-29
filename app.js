@@ -143,7 +143,47 @@ function buildPayload() {
   formData.set("fulfillment", "Sunday pickup");
   formData.set("items", orderItemsInput.value);
   formData.set("total", orderTotalInput.value);
-  return formData;
+  return new URLSearchParams(formData);
+}
+
+function submitOrder(payload) {
+  return new Promise((resolve, reject) => {
+    const callbackName = `handleOrderResponse_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const script = document.createElement("script");
+    const timeout = window.setTimeout(() => {
+      cleanup();
+      reject(new Error("Order submission timed out."));
+    }, 15000);
+
+    function cleanup() {
+      window.clearTimeout(timeout);
+      delete window[callbackName];
+      script.remove();
+    }
+
+    window[callbackName] = (response) => {
+      cleanup();
+      resolve(response);
+    };
+
+    payload.set("callback", callbackName);
+    script.src = `${GOOGLE_SCRIPT_URL}?${payload.toString()}`;
+    script.onerror = () => {
+      cleanup();
+      reject(new Error("Order submission failed."));
+    };
+    document.body.append(script);
+  });
+}
+
+async function submitOrderLegacy(payload) {
+  await fetch(GOOGLE_SCRIPT_URL, {
+    method: "POST",
+    body: payload,
+    mode: "no-cors",
+  });
+
+  return { ok: true, legacy: true };
 }
 
 productGrid.addEventListener("click", (event) => {
@@ -192,11 +232,19 @@ orderForm.addEventListener("submit", async (event) => {
   formStatus.textContent = "Submitting order...";
 
   try {
-    await fetch(GOOGLE_SCRIPT_URL, {
-      method: "POST",
-      body: buildPayload(),
-      mode: "no-cors",
-    });
+    const payload = buildPayload();
+    let response;
+
+    try {
+      response = await submitOrder(payload);
+    } catch (error) {
+      response = await submitOrderLegacy(payload);
+    }
+
+    if (!response.ok) {
+      formStatus.textContent = response.error || "Could not submit the order. Please try another pickup date.";
+      return;
+    }
 
     orderForm.reset();
     cart.clear();

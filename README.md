@@ -20,6 +20,8 @@ const GOOGLE_SCRIPT_URL = "PASTE_WEB_APP_URL_HERE";
 
 Orders will be appended to the `Orders` tab and sorted by `Pickup Date`, then submission time. Pickup dates are shown as readable dates, such as `Sunday, May 31, 2026`.
 
+The Apps Script enforces a maximum of 40 orders for each Sunday pickup date. After editing `google-apps-script.js`, paste the updated script into Apps Script and deploy a new web app version so the live order limit is active.
+
 ## Updating products
 
 Edit the `products` array in `app.js` to change names, prices, descriptions, and photos. When individual product photos arrive, place them in this folder and update each product's `image` value.
