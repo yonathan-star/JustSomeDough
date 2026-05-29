@@ -85,18 +85,31 @@ function countOrdersForPickupDate(sheet, pickupDate) {
   if (lastRow <= 1) return 0;
 
   const values = sheet.getRange(2, 2, lastRow - 1, 1).getValues();
-  return values.filter(([value]) => isSameDate(value, pickupDate)).length;
+  const targetDateKey = getDateKey(pickupDate);
+  return values.filter(([value]) => getDateKey(value) === targetDateKey).length;
 }
 
-function isSameDate(value, date) {
-  const parsed = value instanceof Date ? value : parseDateInput(value);
-  if (!parsed || !date) return false;
+function getDateKey(value) {
+  const date = normalizeDate(value);
+  if (!date) return "";
 
-  return (
-    parsed.getFullYear() === date.getFullYear() &&
-    parsed.getMonth() === date.getMonth() &&
-    parsed.getDate() === date.getDate()
-  );
+  return Utilities.formatDate(date, Session.getScriptTimeZone(), "yyyy-MM-dd");
+}
+
+function normalizeDate(value) {
+  if (value instanceof Date) return value;
+
+  if (typeof value === "number") {
+    return new Date(Math.round((value - 25569) * 86400000));
+  }
+
+  const parsedInput = parseDateInput(value);
+  if (parsedInput) return parsedInput;
+
+  const parsedDate = new Date(value);
+  if (!Number.isNaN(parsedDate.getTime())) return parsedDate;
+
+  return null;
 }
 
 function getOrdersSheet() {
