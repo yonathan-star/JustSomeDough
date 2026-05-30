@@ -1,4 +1,4 @@
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzPwqF2a3ShADJcC5LoaArXXRlg4Zk_sn3_Qe4eynGkFxku4_kmr4dNP5ZVqpmOjcP4nA/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyPynv1H_DXvuqj6RLtgjmdeZQaxm4o8K_VEUtFl_ybPqGinBqE6KAqF-djFTHF7N9cbQ/exec";
 const DELIVERY_FEE = 5;
 
 const products = [
