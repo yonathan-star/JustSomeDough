@@ -1,6 +1,7 @@
 const SHEET_NAME = "Orders";
 const AVAILABILITY_SHEET_NAME = "Available Weeks";
 const MAX_ORDERS_PER_WEEK = 40;
+const ROLLING_AVAILABLE_WEEKS = 8;
 
 function doPost(e) {
   return handleOrderRequest(e);
@@ -127,19 +128,57 @@ function getAvailabilitySheet() {
 }
 
 function seedAvailableWeeks(sheet) {
-  const rows = [];
-  let sunday = getNextSunday(new Date());
+  refreshAvailableWeeks(sheet);
+}
 
-  for (let index = 0; index < 8; index += 1) {
-    rows.push([new Date(sunday), true]);
+function refreshAvailableWeeks(sheet = getAvailabilitySheet()) {
+  const existingAvailability = getExistingAvailability(sheet);
+  const rows = getRollingSundayDates().map((date) => {
+    const dateKey = getDateKey(date);
+    return [date, existingAvailability.has(dateKey) ? existingAvailability.get(dateKey) : true];
+  });
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow > 1) {
+    sheet.getRange(2, 1, lastRow - 1, 2).clearContent();
+  }
+
+  if (rows.length) {
+    sheet.getRange(2, 1, rows.length, 2).setValues(rows);
+  }
+}
+
+function getExistingAvailability(sheet) {
+  const availability = new Map();
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return availability;
+
+  sheet
+    .getRange(2, 1, lastRow - 1, 2)
+    .getValues()
+    .forEach(([date, available]) => {
+      const dateKey = getDateKey(date);
+      if (dateKey) availability.set(dateKey, isAvailableValue(available));
+    });
+
+  return availability;
+}
+
+function getRollingSundayDates() {
+  const rows = [];
+  const sunday = getNextSunday(new Date());
+
+  for (let index = 0; index < ROLLING_AVAILABLE_WEEKS; index += 1) {
+    rows.push(new Date(sunday));
     sunday.setDate(sunday.getDate() + 7);
   }
 
-  sheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
+  return rows;
 }
 
 function getAvailablePickupDates() {
   const sheet = getAvailabilitySheet();
+  refreshAvailableWeeks(sheet);
   const lastRow = sheet.getLastRow();
   if (lastRow <= 1) return [];
 
