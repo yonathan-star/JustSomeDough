@@ -1,4 +1,5 @@
 const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzPwqF2a3ShADJcC5LoaArXXRlg4Zk_sn3_Qe4eynGkFxku4_kmr4dNP5ZVqpmOjcP4nA/exec";
+const DELIVERY_FEE = 5;
 
 const products = [
   {
@@ -44,6 +45,9 @@ const cartItems = document.querySelector("#cartItems");
 const cartTotal = document.querySelector("#cartTotal");
 const orderForm = document.querySelector("#orderForm");
 const formStatus = document.querySelector("#formStatus");
+const deliveryFeeLine = document.querySelector("#deliveryFeeLine");
+const deliveryFeeAmount = document.querySelector("#deliveryFeeAmount");
+const pickupDateSelect = document.querySelector("#preferredDate");
 const orderItemsInput = document.querySelector("#orderItems");
 const orderTotalInput = document.querySelector("#orderTotal");
 
@@ -87,9 +91,15 @@ function getCartLines() {
     .filter((product) => product.quantity > 0);
 }
 
+function getFulfillmentFee() {
+  return orderForm.elements.fulfillment.value === "Delivery" ? DELIVERY_FEE : 0;
+}
+
 function updateCart() {
   const lines = getCartLines();
-  const total = lines.reduce((sum, line) => sum + line.price * line.quantity, 0);
+  const subtotal = lines.reduce((sum, line) => sum + line.price * line.quantity, 0);
+  const deliveryFee = getFulfillmentFee();
+  const total = subtotal + deliveryFee;
 
   products.forEach((product) => {
     const output = document.querySelector(`#qty-${product.id}`);
@@ -113,6 +123,8 @@ function updateCart() {
       .join("");
   }
 
+  deliveryFeeLine.hidden = deliveryFee === 0;
+  deliveryFeeAmount.textContent = currency.format(deliveryFee);
   cartTotal.textContent = currency.format(total);
   orderItemsInput.value = lines.map((line) => `${line.quantity} x ${line.name}`).join("; ");
   orderTotalInput.value = String(total);
@@ -131,22 +143,15 @@ function isSunday(dateString) {
   return new Date(`${dateString}T12:00:00`).getDay() === 0;
 }
 
-function setDefaultDate() {
-  const dateInput = orderForm.elements.preferredDate;
-  dateInput.min = new Date().toISOString().slice(0, 10);
-  dateInput.value = getNextSunday().toISOString().slice(0, 10);
-}
-
 function buildPayload() {
   const formData = new FormData(orderForm);
   formData.set("submittedAt", new Date().toISOString());
-  formData.set("fulfillment", "Sunday pickup");
   formData.set("items", orderItemsInput.value);
   formData.set("total", orderTotalInput.value);
   return new URLSearchParams(formData);
 }
 
-function submitOrder(payload) {
+function requestScript(payload) {
   return new Promise((resolve, reject) => {
     const callbackName = `handleOrderResponse_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const script = document.createElement("script");
@@ -176,6 +181,15 @@ function submitOrder(payload) {
   });
 }
 
+function submitOrder(payload) {
+  return requestScript(payload);
+}
+
+function loadAvailability() {
+  const payload = new URLSearchParams({ action: "availability" });
+  return requestScript(payload);
+}
+
 async function submitOrderLegacy(payload) {
   await fetch(GOOGLE_SCRIPT_URL, {
     method: "POST",
@@ -184,6 +198,36 @@ async function submitOrderLegacy(payload) {
   });
 
   return { ok: true, legacy: true };
+}
+
+function renderAvailability(dates) {
+  pickupDateSelect.innerHTML = "";
+
+  if (!dates.length) {
+    pickupDateSelect.innerHTML = `<option value="">No available pickup weeks</option>`;
+    pickupDateSelect.disabled = true;
+    formStatus.textContent = "No pickup weeks are available right now.";
+    return;
+  }
+
+  pickupDateSelect.disabled = false;
+  pickupDateSelect.innerHTML = dates
+    .map((date) => `<option value="${date.value}">${date.label}</option>`)
+    .join("");
+}
+
+async function setAvailableDates() {
+  pickupDateSelect.innerHTML = `<option value="">Loading available weeks...</option>`;
+  pickupDateSelect.disabled = true;
+
+  try {
+    const response = await loadAvailability();
+    if (!response.ok) throw new Error(response.error || "Could not load available weeks.");
+    renderAvailability(response.dates || []);
+  } catch (error) {
+    pickupDateSelect.innerHTML = `<option value="">Available weeks could not load</option>`;
+    formStatus.textContent = "Available pickup weeks could not load. Please refresh or contact the baker.";
+  }
 }
 
 productGrid.addEventListener("click", (event) => {
@@ -200,14 +244,8 @@ productGrid.addEventListener("click", (event) => {
   updateCart();
 });
 
-orderForm.elements.preferredDate.addEventListener("change", (event) => {
-  if (!isSunday(event.target.value)) {
-    formStatus.textContent = "Pickup is only available on Sundays. Please choose a Sunday.";
-    event.target.value = getNextSunday(new Date(`${event.target.value}T12:00:00`)).toISOString().slice(0, 10);
-  } else {
-    formStatus.textContent = "";
-  }
-
+orderForm.elements.fulfillment.addEventListener("change", () => {
+  updateCart();
 });
 
 orderForm.addEventListener("submit", async (event) => {
@@ -218,8 +256,8 @@ orderForm.addEventListener("submit", async (event) => {
     return;
   }
 
-  if (!isSunday(orderForm.elements.preferredDate.value)) {
-    formStatus.textContent = "Pickup is only available on Sundays. Please choose a Sunday.";
+  if (!orderForm.elements.preferredDate.value) {
+    formStatus.textContent = "Choose an available pickup week.";
     return;
   }
 
@@ -248,7 +286,7 @@ orderForm.addEventListener("submit", async (event) => {
 
     orderForm.reset();
     cart.clear();
-    setDefaultDate();
+    await setAvailableDates();
     updateCart();
     formStatus.textContent = "Order submitted. The baker will confirm shortly.";
   } catch (error) {
@@ -257,5 +295,5 @@ orderForm.addEventListener("submit", async (event) => {
 });
 
 renderProducts();
-setDefaultDate();
+setAvailableDates();
 updateCart();

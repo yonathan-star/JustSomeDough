@@ -22,6 +22,8 @@ Orders will be appended to the `Orders` tab and sorted by `Pickup Date`, then su
 
 The Apps Script enforces a maximum of 40 orders for each Sunday pickup date. After editing `google-apps-script.js`, paste the updated script into Apps Script and deploy a new web app version so the live order limit is active.
 
+The baker controls which weeks are open in the `Available Weeks` tab. Put each Sunday in `Pickup Date`, then set `Available` to `TRUE` or `FALSE`. The website only shows dates marked available.
+
 ## Updating products
 
 Edit the `products` array in `app.js` to change names, prices, descriptions, and photos. When individual product photos arrive, place them in this folder and update each product's `image` value.

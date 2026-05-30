@@ -1,4 +1,5 @@
 const SHEET_NAME = "Orders";
+const AVAILABILITY_SHEET_NAME = "Available Weeks";
 const MAX_ORDERS_PER_WEEK = 40;
 
 function doPost(e) {
@@ -14,16 +15,31 @@ function handleOrderRequest(e) {
     return createResponse({ ok: false, error: "No form data received. Submit from the website or run testOrder()." });
   }
 
+  const data = e.parameter;
+  if (data.action === "availability") {
+    return createResponse({ ok: true, dates: getAvailablePickupDates() }, data.callback);
+  }
+
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
 
   try {
     const sheet = getOrdersSheet();
-    const data = e.parameter;
     const pickupDate = parseDateInput(data.preferredDate);
 
     if (!pickupDate) {
       return createResponse({ ok: false, error: "Choose a valid pickup date." }, data.callback);
+    }
+
+    if (!isPickupDateAvailable(pickupDate)) {
+      return createResponse(
+        {
+          ok: false,
+          error: "This pickup week is not available. Please choose another Sunday.",
+          code: "WEEK_UNAVAILABLE",
+        },
+        data.callback,
+      );
     }
 
     const currentOrders = countOrdersForPickupDate(sheet, pickupDate);
@@ -87,6 +103,67 @@ function countOrdersForPickupDate(sheet, pickupDate) {
   const values = sheet.getRange(2, 2, lastRow - 1, 1).getValues();
   const targetDateKey = getDateKey(pickupDate);
   return values.filter(([value]) => getDateKey(value) === targetDateKey).length;
+}
+
+function getAvailabilitySheet() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = spreadsheet.getSheetByName(AVAILABILITY_SHEET_NAME);
+
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(AVAILABILITY_SHEET_NAME);
+  }
+
+  const headers = ["Pickup Date", "Available"];
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(headers);
+    sheet.setFrozenRows(1);
+    seedAvailableWeeks(sheet);
+  } else {
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  }
+
+  sheet.getRange("A:A").setNumberFormat("dddd, mmmm d, yyyy");
+  return sheet;
+}
+
+function seedAvailableWeeks(sheet) {
+  const rows = [];
+  let sunday = getNextSunday(new Date());
+
+  for (let index = 0; index < 8; index += 1) {
+    rows.push([new Date(sunday), true]);
+    sunday.setDate(sunday.getDate() + 7);
+  }
+
+  sheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
+}
+
+function getAvailablePickupDates() {
+  const sheet = getAvailabilitySheet();
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return [];
+
+  const todayKey = getDateKey(new Date());
+  return sheet
+    .getRange(2, 1, lastRow - 1, 2)
+    .getValues()
+    .map(([date, available]) => ({ date, available }))
+    .filter(({ date, available }) => isAvailableValue(available) && getDateKey(date) >= todayKey)
+    .map(({ date }) => ({
+      value: getDateKey(date),
+      label: Utilities.formatDate(normalizeDate(date), Session.getScriptTimeZone(), "EEEE, MMMM d, yyyy"),
+    }))
+    .sort((a, b) => a.value.localeCompare(b.value));
+}
+
+function isPickupDateAvailable(pickupDate) {
+  const pickupDateKey = getDateKey(pickupDate);
+  return getAvailablePickupDates().some(({ value }) => value === pickupDateKey);
+}
+
+function isAvailableValue(value) {
+  if (value === true) return true;
+  return ["true", "yes", "y", "available", "open", "1"].includes(String(value).trim().toLowerCase());
 }
 
 function getDateKey(value) {
@@ -171,8 +248,17 @@ function parseDateInput(value) {
   return new Date(year, month, day, 12, 0, 0);
 }
 
+function getNextSunday(date) {
+  const nextSunday = new Date(date);
+  nextSunday.setHours(12, 0, 0, 0);
+  const daysUntilSunday = (7 - nextSunday.getDay()) % 7 || 7;
+  nextSunday.setDate(nextSunday.getDate() + daysUntilSunday);
+  return nextSunday;
+}
+
 function setupOrdersSheet() {
   getOrdersSheet();
+  getAvailabilitySheet();
 }
 
 function testOrder() {
