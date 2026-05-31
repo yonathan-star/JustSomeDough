@@ -54,6 +54,7 @@ const orderItemsInput = document.querySelector("#orderItems");
 const orderTotalInput = document.querySelector("#orderTotal");
 let currentDeliveryQuote = null;
 let deliveryQuoteRequestId = 0;
+let isDeliveryQuoteLoading = false;
 
 const currency = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -142,8 +143,8 @@ function updateCart() {
       .join("");
   }
 
-  deliveryFeeLine.hidden = !isDelivery;
-  deliveryFeeAmount.textContent = currentDeliveryQuote ? currency.format(deliveryFee) : "Calculating";
+  deliveryFeeLine.hidden = !isDelivery || (!currentDeliveryQuote && !isDeliveryQuoteLoading);
+  deliveryFeeAmount.textContent = isDeliveryQuoteLoading ? "Calculating" : currency.format(deliveryFee);
   cartTotal.textContent = currency.format(total);
   orderItemsInput.value = lines.map((line) => `${line.quantity} x ${line.name}`).join("; ");
   orderTotalInput.value = String(total);
@@ -295,6 +296,7 @@ async function updateDeliveryQuote() {
   const requestId = (deliveryQuoteRequestId += 1);
 
   currentDeliveryQuote = null;
+  isDeliveryQuoteLoading = false;
   updateCart();
 
   if (orderForm.elements.fulfillment.value !== "Delivery") return true;
@@ -305,13 +307,17 @@ async function updateDeliveryQuote() {
   }
 
   deliveryFeeStatus.textContent = "Calculating delivery fee...";
+  isDeliveryQuoteLoading = true;
+  updateCart();
 
   try {
     const quote = await loadDeliveryFee(address);
     if (requestId !== deliveryQuoteRequestId) return false;
 
+    isDeliveryQuoteLoading = false;
     if (!quote.ok) {
       deliveryFeeStatus.textContent = quote.error || "Could not calculate delivery fee.";
+      updateCart();
       return false;
     }
 
@@ -320,9 +326,11 @@ async function updateDeliveryQuote() {
     updateCart();
     return true;
   } catch (error) {
+    isDeliveryQuoteLoading = false;
     if (requestId === deliveryQuoteRequestId) {
       deliveryFeeStatus.textContent = "Could not calculate delivery fee. Please check the address.";
     }
+    updateCart();
     return false;
   }
 }
