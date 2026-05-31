@@ -85,6 +85,7 @@ function handleOrderRequest(e) {
       data.deliveryAddress || "",
       deliveryQuote ? deliveryQuote.fee : 0,
       deliveryQuote ? deliveryQuote.miles : "",
+      data.paymentMethod || "",
     ];
 
     sheet.appendRow(row);
@@ -316,6 +317,7 @@ function getOrdersSheet() {
     "Address",
     "Delivery Fee",
     "Delivery Miles",
+    "Payment Method",
   ];
 
   if (sheet.getLastRow() === 0) {
