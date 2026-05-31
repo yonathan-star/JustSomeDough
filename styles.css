@@ -504,6 +504,37 @@ textarea {
   font-weight: 700;
 }
 
+.payment-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(36, 23, 17, 0.54);
+}
+
+.payment-modal-panel {
+  width: min(440px, 100%);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--cream);
+  box-shadow: var(--shadow);
+  padding: 24px;
+}
+
+.payment-modal-panel h2 {
+  margin: 0 0 10px;
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 2rem;
+}
+
+.payment-modal-panel p {
+  margin: 0 0 20px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
 .site-footer {
   display: flex;
   justify-content: space-between;

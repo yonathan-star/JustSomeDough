@@ -52,6 +52,9 @@ const deliveryFeeStatus = document.querySelector("#deliveryFeeStatus");
 const pickupDateSelect = document.querySelector("#preferredDate");
 const orderItemsInput = document.querySelector("#orderItems");
 const orderTotalInput = document.querySelector("#orderTotal");
+const paymentModal = document.querySelector("#paymentModal");
+const paymentModalMessage = document.querySelector("#paymentModalMessage");
+const paymentModalClose = document.querySelector("#paymentModalClose");
 let currentDeliveryQuote = null;
 let deliveryQuoteRequestId = 0;
 let isDeliveryQuoteLoading = false;
@@ -251,6 +254,19 @@ function loadDeliveryFee(address) {
   return requestEndpoint(payload);
 }
 
+function showPaymentModal(paymentMethod, total) {
+  if (!paymentModal || !paymentModalMessage) return;
+
+  if (paymentMethod.startsWith("Zelle")) {
+    paymentModalMessage.textContent = `Please Zelle ${currency.format(total)} to 7034990615 to complete your order.`;
+  } else {
+    paymentModalMessage.textContent = `Please have ${currency.format(total)} in cash ready when you receive your order.`;
+  }
+
+  paymentModal.hidden = false;
+  paymentModalClose.focus();
+}
+
 async function submitOrderLegacy(payload) {
   await fetch(GOOGLE_SCRIPT_URL, {
     method: "POST",
@@ -363,6 +379,14 @@ orderForm.elements.deliveryAddress.addEventListener("blur", () => {
   updateDeliveryQuote();
 });
 
+paymentModalClose.addEventListener("click", () => {
+  paymentModal.hidden = true;
+});
+
+paymentModal.addEventListener("click", (event) => {
+  if (event.target === paymentModal) paymentModal.hidden = true;
+});
+
 orderForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
@@ -390,6 +414,8 @@ orderForm.addEventListener("submit", async (event) => {
   formStatus.textContent = "Submitting order...";
 
   try {
+    const paymentMethod = orderForm.elements.paymentMethod.value;
+    const total = Number(orderTotalInput.value || 0);
     const payload = buildPayload();
     let response;
 
@@ -409,6 +435,7 @@ orderForm.addEventListener("submit", async (event) => {
     await setAvailableDates();
     updateCart();
     formStatus.textContent = "Order submitted. The baker will confirm shortly.";
+    showPaymentModal(paymentMethod, total);
   } catch (error) {
     formStatus.textContent = "Could not submit the order. Please try again or text the baker.";
   }
