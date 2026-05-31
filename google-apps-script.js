@@ -6,7 +6,7 @@ const BAKERY_ADDRESS = "2960 Birch Terrace, Davie, FL 33330";
 const BASE_DELIVERY_FEE = 5;
 const INCLUDED_DELIVERY_MILES = 21;
 const DELIVERY_FEE_PER_EXTRA_MILE = 1;
-const MAX_DELIVERY_MILES = 35;
+const MAX_DELIVERY_MILES = 25;
 
 function doPost(e) {
   return handleOrderRequest(e);
