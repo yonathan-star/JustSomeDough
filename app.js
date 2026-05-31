@@ -163,20 +163,13 @@ function isSunday(dateString) {
 
 function buildPayload() {
   const formData = new FormData(orderForm);
-  const deliveryAddress = formData.get("deliveryAddress");
-  const notes = formData.get("notes");
   const deliveryFee = getFulfillmentFee();
 
   formData.set("submittedAt", new Date().toISOString());
   formData.set("items", orderItemsInput.value);
   formData.set("total", orderTotalInput.value);
   formData.set("deliveryFee", String(deliveryFee));
-  if (deliveryAddress) {
-    const deliveryDetails = currentDeliveryQuote
-      ? `Delivery address: ${deliveryAddress} | Delivery fee: ${currency.format(deliveryFee)} | Distance: ${currentDeliveryQuote.miles} mi`
-      : `Delivery address: ${deliveryAddress}`;
-    formData.set("notes", `${deliveryDetails}${notes ? ` | ${notes}` : ""}`);
-  }
+  if (currentDeliveryQuote) formData.set("deliveryMiles", String(currentDeliveryQuote.miles));
   return new URLSearchParams(formData);
 }
 

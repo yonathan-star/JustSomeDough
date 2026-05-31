@@ -83,6 +83,7 @@ function handleOrderRequest(e) {
       data.items || "",
       Number(data.total || 0),
       data.notes || "",
+      data.deliveryAddress || "",
     ];
 
     sheet.appendRow(row);
@@ -311,6 +312,7 @@ function getOrdersSheet() {
     "Items",
     "Total",
     "Notes",
+    "Address",
   ];
 
   if (sheet.getLastRow() === 0) {
