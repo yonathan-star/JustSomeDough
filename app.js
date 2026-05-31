@@ -97,7 +97,7 @@ function getCartLines() {
 
 function getFulfillmentFee() {
   return orderForm.elements.fulfillment.value === "Delivery" && currentDeliveryQuote
-    ? currentDeliveryQuote.fee
+    ? Number(currentDeliveryQuote.fee) || 0
     : 0;
 }
 
@@ -117,6 +117,7 @@ function updateCart() {
   const lines = getCartLines();
   const subtotal = lines.reduce((sum, line) => sum + line.price * line.quantity, 0);
   const deliveryFee = getFulfillmentFee();
+  const isDelivery = orderForm.elements.fulfillment.value === "Delivery";
   const total = subtotal + deliveryFee;
 
   products.forEach((product) => {
@@ -141,8 +142,8 @@ function updateCart() {
       .join("");
   }
 
-  deliveryFeeLine.hidden = deliveryFee === 0;
-  deliveryFeeAmount.textContent = currency.format(deliveryFee);
+  deliveryFeeLine.hidden = !isDelivery;
+  deliveryFeeAmount.textContent = currentDeliveryQuote ? currency.format(deliveryFee) : "Calculating";
   cartTotal.textContent = currency.format(total);
   orderItemsInput.value = lines.map((line) => `${line.quantity} x ${line.name}`).join("; ");
   orderTotalInput.value = String(total);

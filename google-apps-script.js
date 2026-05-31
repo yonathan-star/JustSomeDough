@@ -52,11 +52,10 @@ function handleOrderRequest(e) {
       );
     }
 
+    let deliveryQuote = null;
     if (data.fulfillment === "Delivery") {
-      const quote = getDeliveryQuote(data.deliveryAddress);
-      if (!quote.ok) {
-        return createResponse(quote, data.callback);
-      }
+      deliveryQuote = getDeliveryQuote(data.deliveryAddress);
+      if (!deliveryQuote.ok) return createResponse(deliveryQuote, data.callback);
     }
 
     const currentOrders = countOrdersForPickupDate(sheet, pickupDate);
@@ -84,6 +83,8 @@ function handleOrderRequest(e) {
       Number(data.total || 0),
       data.notes || "",
       data.deliveryAddress || "",
+      deliveryQuote ? deliveryQuote.fee : 0,
+      deliveryQuote ? deliveryQuote.miles : "",
     ];
 
     sheet.appendRow(row);
@@ -313,6 +314,8 @@ function getOrdersSheet() {
     "Total",
     "Notes",
     "Address",
+    "Delivery Fee",
+    "Delivery Miles",
   ];
 
   if (sheet.getLastRow() === 0) {
@@ -325,6 +328,7 @@ function getOrdersSheet() {
   sheet.getRange("A:A").setNumberFormat("m/d/yyyy h:mm am/pm");
   sheet.getRange("B:B").setNumberFormat("dddd, mmmm d, yyyy");
   sheet.getRange("H:H").setNumberFormat("$0");
+  sheet.getRange("K:K").setNumberFormat("$0");
 
   return sheet;
 }
