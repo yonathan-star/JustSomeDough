@@ -1,5 +1,4 @@
 const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbylmClssVR4MnXjlAQd1iztXXSVWLr3Vd73XaX9lPE-449d1JQkkpb6sIpge4j9LFUGfw/exec";
-const DELIVERY_FEE = 5;
 
 const products = [
   {
@@ -48,9 +47,12 @@ const formStatus = document.querySelector("#formStatus");
 const deliveryFeeLine = document.querySelector("#deliveryFeeLine");
 const deliveryFeeAmount = document.querySelector("#deliveryFeeAmount");
 const deliveryAddressField = document.querySelector("#deliveryAddressField");
+const deliveryFeeStatus = document.querySelector("#deliveryFeeStatus");
 const pickupDateSelect = document.querySelector("#preferredDate");
 const orderItemsInput = document.querySelector("#orderItems");
 const orderTotalInput = document.querySelector("#orderTotal");
+let currentDeliveryQuote = null;
+let deliveryQuoteRequestId = 0;
 
 const currency = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -93,7 +95,9 @@ function getCartLines() {
 }
 
 function getFulfillmentFee() {
-  return orderForm.elements.fulfillment.value === "Delivery" ? DELIVERY_FEE : 0;
+  return orderForm.elements.fulfillment.value === "Delivery" && currentDeliveryQuote
+    ? currentDeliveryQuote.fee
+    : 0;
 }
 
 function updateDeliveryAddressField() {
@@ -101,7 +105,11 @@ function updateDeliveryAddressField() {
   const input = orderForm.elements.deliveryAddress;
   deliveryAddressField.hidden = !isDelivery;
   input.required = isDelivery;
-  if (!isDelivery) input.value = "";
+  if (!isDelivery) {
+    input.value = "";
+    currentDeliveryQuote = null;
+    deliveryFeeStatus.textContent = "Delivery fee will be calculated from 2960 Birch Terr.";
+  }
 }
 
 function updateCart() {
@@ -156,12 +164,17 @@ function buildPayload() {
   const formData = new FormData(orderForm);
   const deliveryAddress = formData.get("deliveryAddress");
   const notes = formData.get("notes");
+  const deliveryFee = getFulfillmentFee();
 
   formData.set("submittedAt", new Date().toISOString());
   formData.set("items", orderItemsInput.value);
   formData.set("total", orderTotalInput.value);
+  formData.set("deliveryFee", String(deliveryFee));
   if (deliveryAddress) {
-    formData.set("notes", `Delivery address: ${deliveryAddress}${notes ? ` | ${notes}` : ""}`);
+    const deliveryDetails = currentDeliveryQuote
+      ? `Delivery address: ${deliveryAddress} | Delivery fee: ${currency.format(deliveryFee)} | Distance: ${currentDeliveryQuote.miles} mi`
+      : `Delivery address: ${deliveryAddress}`;
+    formData.set("notes", `${deliveryDetails}${notes ? ` | ${notes}` : ""}`);
   }
   return new URLSearchParams(formData);
 }
@@ -173,7 +186,7 @@ function requestScript(payload) {
     const timeout = window.setTimeout(() => {
       cleanup();
       reject(new Error("Order submission timed out."));
-    }, 15000);
+    }, 30000);
 
     function cleanup() {
       window.clearTimeout(timeout);
@@ -187,6 +200,8 @@ function requestScript(payload) {
     };
 
     payload.set("callback", callbackName);
+    payload.set("_", Date.now().toString());
+    script.async = true;
     script.src = `${GOOGLE_SCRIPT_URL}?${payload.toString()}`;
     script.onerror = () => {
       cleanup();
@@ -202,6 +217,14 @@ function submitOrder(payload) {
 
 function loadAvailability() {
   const payload = new URLSearchParams({ action: "availability" });
+  return requestScript(payload);
+}
+
+function loadDeliveryFee(address) {
+  const payload = new URLSearchParams({
+    action: "deliveryFee",
+    deliveryAddress: address,
+  });
   return requestScript(payload);
 }
 
@@ -245,6 +268,43 @@ async function setAvailableDates() {
   }
 }
 
+async function updateDeliveryQuote() {
+  const address = orderForm.elements.deliveryAddress.value.trim();
+  const requestId = (deliveryQuoteRequestId += 1);
+
+  currentDeliveryQuote = null;
+  updateCart();
+
+  if (orderForm.elements.fulfillment.value !== "Delivery") return true;
+
+  if (!address) {
+    deliveryFeeStatus.textContent = "Enter a delivery address to calculate the fee.";
+    return false;
+  }
+
+  deliveryFeeStatus.textContent = "Calculating delivery fee...";
+
+  try {
+    const quote = await loadDeliveryFee(address);
+    if (requestId !== deliveryQuoteRequestId) return false;
+
+    if (!quote.ok) {
+      deliveryFeeStatus.textContent = quote.error || "Could not calculate delivery fee.";
+      return false;
+    }
+
+    currentDeliveryQuote = quote;
+    deliveryFeeStatus.textContent = `Delivery: ${currency.format(quote.fee)} (${quote.miles} mi from 2960 Birch Terr)`;
+    updateCart();
+    return true;
+  } catch (error) {
+    if (requestId === deliveryQuoteRequestId) {
+      deliveryFeeStatus.textContent = "Could not calculate delivery fee. Please check the address.";
+    }
+    return false;
+  }
+}
+
 productGrid.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-action]");
   if (!button) return;
@@ -262,6 +322,15 @@ productGrid.addEventListener("click", (event) => {
 orderForm.elements.fulfillment.addEventListener("change", () => {
   updateDeliveryAddressField();
   updateCart();
+  if (orderForm.elements.fulfillment.value === "Delivery") updateDeliveryQuote();
+});
+
+orderForm.elements.deliveryAddress.addEventListener("change", () => {
+  updateDeliveryQuote();
+});
+
+orderForm.elements.deliveryAddress.addEventListener("blur", () => {
+  updateDeliveryQuote();
 });
 
 orderForm.addEventListener("submit", async (event) => {
@@ -274,6 +343,11 @@ orderForm.addEventListener("submit", async (event) => {
 
   if (!orderForm.elements.preferredDate.value) {
     formStatus.textContent = "Choose an available pickup week.";
+    return;
+  }
+
+  if (orderForm.elements.fulfillment.value === "Delivery" && !(await updateDeliveryQuote())) {
+    formStatus.textContent = "Enter a valid delivery address before submitting.";
     return;
   }
 

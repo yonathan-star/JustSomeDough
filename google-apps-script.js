@@ -2,6 +2,11 @@ const SHEET_NAME = "Orders";
 const AVAILABILITY_SHEET_NAME = "Available Weeks";
 const MAX_ORDERS_PER_WEEK = 40;
 const ROLLING_AVAILABLE_WEEKS = 8;
+const BAKERY_ADDRESS = "2960 Birch Terr";
+const BASE_DELIVERY_FEE = 5;
+const INCLUDED_DELIVERY_MILES = 5;
+const DELIVERY_FEE_PER_EXTRA_MILE = 1;
+const MAX_DELIVERY_MILES = 20;
 
 function doPost(e) {
   return handleOrderRequest(e);
@@ -19,6 +24,10 @@ function handleOrderRequest(e) {
   const data = e.parameter;
   if (data.action === "availability") {
     return createResponse({ ok: true, dates: getAvailablePickupDates() }, data.callback);
+  }
+
+  if (data.action === "deliveryFee") {
+    return createResponse(getDeliveryQuote(data.deliveryAddress), data.callback);
   }
 
   const lock = LockService.getScriptLock();
@@ -41,6 +50,13 @@ function handleOrderRequest(e) {
         },
         data.callback,
       );
+    }
+
+    if (data.fulfillment === "Delivery") {
+      const quote = getDeliveryQuote(data.deliveryAddress);
+      if (!quote.ok) {
+        return createResponse(quote, data.callback);
+      }
     }
 
     const currentOrders = countOrdersForPickupDate(sheet, pickupDate);
@@ -104,6 +120,55 @@ function countOrdersForPickupDate(sheet, pickupDate) {
   const values = sheet.getRange(2, 2, lastRow - 1, 1).getValues();
   const targetDateKey = getDateKey(pickupDate);
   return values.filter(([value]) => getDateKey(value) === targetDateKey).length;
+}
+
+function getDeliveryQuote(deliveryAddress) {
+  if (!deliveryAddress) {
+    return { ok: false, error: "Enter a delivery address.", code: "NO_DELIVERY_ADDRESS" };
+  }
+
+  try {
+    const directions = Maps.newDirectionFinder()
+      .setOrigin(BAKERY_ADDRESS)
+      .setDestination(deliveryAddress)
+      .setMode(Maps.DirectionFinder.Mode.DRIVING)
+      .getDirections();
+
+    const route = directions.routes && directions.routes[0];
+    const leg = route && route.legs && route.legs[0];
+    const meters = leg && leg.distance && leg.distance.value;
+
+    if (!meters) {
+      return { ok: false, error: "Could not calculate delivery distance. Please check the address.", code: "NO_ROUTE" };
+    }
+
+    const miles = meters / 1609.344;
+    if (miles > MAX_DELIVERY_MILES) {
+      return {
+        ok: false,
+        error: `Delivery is only available within ${MAX_DELIVERY_MILES} miles.`,
+        code: "OUT_OF_DELIVERY_RANGE",
+        miles: roundMiles(miles),
+      };
+    }
+
+    const extraMiles = Math.max(0, Math.ceil(miles - INCLUDED_DELIVERY_MILES));
+    const fee = BASE_DELIVERY_FEE + extraMiles * DELIVERY_FEE_PER_EXTRA_MILE;
+
+    return {
+      ok: true,
+      fee,
+      miles: roundMiles(miles),
+      origin: BAKERY_ADDRESS,
+      destination: leg.end_address || deliveryAddress,
+    };
+  } catch (error) {
+    return { ok: false, error: "Could not calculate delivery distance. Please check the address.", code: "DELIVERY_QUOTE_FAILED" };
+  }
+}
+
+function roundMiles(value) {
+  return Math.round(value * 10) / 10;
 }
 
 function getAvailabilitySheet() {
