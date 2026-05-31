@@ -258,7 +258,7 @@ function showPaymentModal(paymentMethod, total) {
   if (!paymentModal || !paymentModalMessage) return;
 
   if (paymentMethod.startsWith("Zelle")) {
-    paymentModalMessage.textContent = `Please Zelle ${currency.format(total)} to 7034990615 to complete your order.`;
+    paymentModalMessage.textContent = `Please Zelle ${currency.format(total)} to 7034880615 to complete your order.`;
   } else {
     paymentModalMessage.textContent = `Please have ${currency.format(total)} in cash ready when you receive your order.`;
   }
