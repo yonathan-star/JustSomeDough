@@ -6,7 +6,7 @@ const products = [
     id: "regular-sourdough",
     name: "Regular Sourdough",
     price: 12,
-    image: "Snapchat-1793413218.jpg",
+    image: "regular-sourdough.jpg",
     description: "A naturally leavened loaf with a crisp crust and open, chewy crumb.",
   },
   {
@@ -20,21 +20,21 @@ const products = [
     id: "garlic-rosemary",
     name: "Garlic Rosemary",
     price: 15,
-    image: "Snapchat-1804780126.jpg",
+    image: "garlic-rosemary.jpg",
     description: "Savory sourdough made for dinner boards, soups, and sandwiches.",
   },
   {
     id: "blueberry-lemon",
     name: "Blueberry Lemon",
     price: 15,
-    image: "blueberry-lemon.jpg",
+    image: "blueberry-lemon-new.jpg",
     description: "Bright lemon and blueberry folded into a tender sourdough loaf.",
   },
   {
     id: "olive",
     name: "Olive",
     price: 15,
-    image: "",
+    image: "olive-sourdough.jpg",
     description: "A savory olive sourdough loaf with a briny, rich finish.",
   },
 ];
