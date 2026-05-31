@@ -47,6 +47,7 @@ const orderForm = document.querySelector("#orderForm");
 const formStatus = document.querySelector("#formStatus");
 const deliveryFeeLine = document.querySelector("#deliveryFeeLine");
 const deliveryFeeAmount = document.querySelector("#deliveryFeeAmount");
+const deliveryAddressField = document.querySelector("#deliveryAddressField");
 const pickupDateSelect = document.querySelector("#preferredDate");
 const orderItemsInput = document.querySelector("#orderItems");
 const orderTotalInput = document.querySelector("#orderTotal");
@@ -93,6 +94,14 @@ function getCartLines() {
 
 function getFulfillmentFee() {
   return orderForm.elements.fulfillment.value === "Delivery" ? DELIVERY_FEE : 0;
+}
+
+function updateDeliveryAddressField() {
+  const isDelivery = orderForm.elements.fulfillment.value === "Delivery";
+  const input = orderForm.elements.deliveryAddress;
+  deliveryAddressField.hidden = !isDelivery;
+  input.required = isDelivery;
+  if (!isDelivery) input.value = "";
 }
 
 function updateCart() {
@@ -145,9 +154,15 @@ function isSunday(dateString) {
 
 function buildPayload() {
   const formData = new FormData(orderForm);
+  const deliveryAddress = formData.get("deliveryAddress");
+  const notes = formData.get("notes");
+
   formData.set("submittedAt", new Date().toISOString());
   formData.set("items", orderItemsInput.value);
   formData.set("total", orderTotalInput.value);
+  if (deliveryAddress) {
+    formData.set("notes", `Delivery address: ${deliveryAddress}${notes ? ` | ${notes}` : ""}`);
+  }
   return new URLSearchParams(formData);
 }
 
@@ -245,6 +260,7 @@ productGrid.addEventListener("click", (event) => {
 });
 
 orderForm.elements.fulfillment.addEventListener("change", () => {
+  updateDeliveryAddressField();
   updateCart();
 });
 
@@ -296,4 +312,5 @@ orderForm.addEventListener("submit", async (event) => {
 
 renderProducts();
 setAvailableDates();
+updateDeliveryAddressField();
 updateCart();
