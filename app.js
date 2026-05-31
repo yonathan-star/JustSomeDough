@@ -1,5 +1,5 @@
 const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwh2THjvSuUaa4xbbzhlxBQYTDtIVIu1vmOeMPyCkjZqakxiUkhcDhucHh9d7dq_53dnw/exec";
-const BAKERY_ADDRESS = "2960 Birch Terrace, Davie, FL 33330";
+const BAKERY_LOCATION_LABEL = "where the bread is being baked";
 
 const products = [
   {
@@ -109,7 +109,7 @@ function updateDeliveryAddressField() {
   if (!isDelivery) {
     input.value = "";
     currentDeliveryQuote = null;
-    deliveryFeeStatus.textContent = `Delivery fee will be calculated from ${BAKERY_ADDRESS}.`;
+    deliveryFeeStatus.textContent = `Delivery fee will be calculated from ${BAKERY_LOCATION_LABEL}.`;
   }
 }
 
@@ -212,13 +212,40 @@ function requestScript(payload) {
   });
 }
 
+async function requestJson(payload) {
+  const requestPayload = new URLSearchParams(payload);
+  requestPayload.set("_", Date.now().toString());
+
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 30000);
+
+  try {
+    const response = await fetch(`${GOOGLE_SCRIPT_URL}?${requestPayload.toString()}`, {
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error("Request failed.");
+    return await response.json();
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
+async function requestEndpoint(payload) {
+  try {
+    return await requestJson(payload);
+  } catch (error) {
+    return requestScript(payload);
+  }
+}
+
 function submitOrder(payload) {
-  return requestScript(payload);
+  return requestEndpoint(payload);
 }
 
 function loadAvailability() {
   const payload = new URLSearchParams({ action: "availability" });
-  return requestScript(payload);
+  return requestEndpoint(payload);
 }
 
 function loadDeliveryFee(address) {
@@ -226,7 +253,7 @@ function loadDeliveryFee(address) {
     action: "deliveryFee",
     deliveryAddress: address,
   });
-  return requestScript(payload);
+  return requestEndpoint(payload);
 }
 
 async function submitOrderLegacy(payload) {
@@ -295,7 +322,7 @@ async function updateDeliveryQuote() {
     }
 
     currentDeliveryQuote = quote;
-    deliveryFeeStatus.textContent = `Delivery: ${currency.format(quote.fee)} (${quote.miles} mi from ${BAKERY_ADDRESS})`;
+    deliveryFeeStatus.textContent = `Delivery: ${currency.format(quote.fee)} (${quote.miles} mi from ${BAKERY_LOCATION_LABEL})`;
     updateCart();
     return true;
   } catch (error) {
