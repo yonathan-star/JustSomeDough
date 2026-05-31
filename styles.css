@@ -451,6 +451,8 @@ h3 {
 }
 
 .order-form label {
+  align-content: start;
+  align-self: start;
   display: grid;
   gap: 7px;
   color: var(--muted);
@@ -480,6 +482,11 @@ textarea {
   color: var(--ink);
   font: inherit;
   padding: 12px;
+}
+
+input,
+select {
+  min-height: 53px;
 }
 
 textarea {
