@@ -1,4 +1,4 @@
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzJkwX-yetI_q_YaJYS1h0pEoCI60i-XKsKrFDYpCOr1t-sVRFA7oLORPGw3ebbG38Iog/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbymhTP1XDh1dm2aGmxtEEtDXeVierLikY84OfghcMvedEPbeDRjKfpglhzeITApKszydg/exec";
 const BAKERY_LOCATION_LABEL = "where the bread is being baked";
 
 const products = [
