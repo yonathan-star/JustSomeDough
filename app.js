@@ -1,4 +1,5 @@
 const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwh2THjvSuUaa4xbbzhlxBQYTDtIVIu1vmOeMPyCkjZqakxiUkhcDhucHh9d7dq_53dnw/exec";
+const BAKERY_ADDRESS = "2960 Birch Terrace, Davie, FL 33330";
 
 const products = [
   {
@@ -108,7 +109,7 @@ function updateDeliveryAddressField() {
   if (!isDelivery) {
     input.value = "";
     currentDeliveryQuote = null;
-    deliveryFeeStatus.textContent = "Delivery fee will be calculated from 2960 Birch Terr.";
+    deliveryFeeStatus.textContent = `Delivery fee will be calculated from ${BAKERY_ADDRESS}.`;
   }
 }
 
@@ -294,7 +295,7 @@ async function updateDeliveryQuote() {
     }
 
     currentDeliveryQuote = quote;
-    deliveryFeeStatus.textContent = `Delivery: ${currency.format(quote.fee)} (${quote.miles} mi from 2960 Birch Terr)`;
+    deliveryFeeStatus.textContent = `Delivery: ${currency.format(quote.fee)} (${quote.miles} mi from ${BAKERY_ADDRESS})`;
     updateCart();
     return true;
   } catch (error) {
