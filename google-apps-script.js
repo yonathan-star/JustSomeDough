@@ -3,6 +3,7 @@ const AVAILABILITY_SHEET_NAME = "Available Weeks";
 const MAX_ORDERS_PER_WEEK = 40;
 const ROLLING_AVAILABLE_WEEKS = 8;
 const BAKERY_ADDRESS = "2960 Birch Terrace, Davie, FL 33330";
+const DELIVERY_ADDRESS_CONTEXT = "Broward County, FL";
 const BASE_DELIVERY_FEE = 5;
 const INCLUDED_DELIVERY_MILES = 21;
 const DELIVERY_FEE_PER_EXTRA_MILE = 1;
@@ -126,19 +127,14 @@ function countOrdersForPickupDate(sheet, pickupDate) {
 }
 
 function getDeliveryQuote(deliveryAddress) {
-  if (!deliveryAddress) {
+  const destinationOptions = getDeliveryDestinationOptions(deliveryAddress);
+  if (!destinationOptions.length) {
     return { ok: false, error: "Enter a delivery address.", code: "NO_DELIVERY_ADDRESS" };
   }
 
   try {
-    const directions = Maps.newDirectionFinder()
-      .setOrigin(BAKERY_ADDRESS)
-      .setDestination(deliveryAddress)
-      .setMode(Maps.DirectionFinder.Mode.DRIVING)
-      .getDirections();
-
-    const route = directions.routes && directions.routes[0];
-    const leg = route && route.legs && route.legs[0];
+    const quote = getFirstDeliveryRoute(destinationOptions);
+    const leg = quote && quote.leg;
     const meters = leg && leg.distance && leg.distance.value;
 
     if (!meters) {
@@ -164,10 +160,66 @@ function getDeliveryQuote(deliveryAddress) {
       miles: roundMiles(miles),
       origin: BAKERY_ADDRESS,
       destination: leg.end_address || deliveryAddress,
+      requestedDestination: deliveryAddress,
+      resolvedFrom: quote.destination,
     };
   } catch (error) {
     return { ok: false, error: "Could not calculate delivery distance. Please check the address.", code: "DELIVERY_QUOTE_FAILED" };
   }
+}
+
+function getFirstDeliveryRoute(destinations) {
+  for (let index = 0; index < destinations.length; index += 1) {
+    try {
+      const destination = destinations[index];
+      const directions = Maps.newDirectionFinder()
+        .setOrigin(BAKERY_ADDRESS)
+        .setDestination(destination)
+        .setMode(Maps.DirectionFinder.Mode.DRIVING)
+        .getDirections();
+
+      const route = directions.routes && directions.routes[0];
+      const leg = route && route.legs && route.legs[0];
+      if (leg && leg.distance && leg.distance.value) {
+        return { destination, leg };
+      }
+    } catch (error) {
+      // Try the next locally-qualified version of the address.
+    }
+  }
+
+  return null;
+}
+
+function getDeliveryDestinationOptions(deliveryAddress) {
+  const address = String(deliveryAddress || "").trim().replace(/\s+/g, " ");
+  if (!address) return [];
+
+  let options = [address];
+  if (!hasLocalAddressContext(address)) {
+    options = [
+      `${address}, ${DELIVERY_ADDRESS_CONTEXT}`,
+      `${address}, FL`,
+      `${address}, Florida, USA`,
+      address,
+    ];
+  }
+
+  return dedupeStrings(options);
+}
+
+function hasLocalAddressContext(address) {
+  return /\b\d{5}(?:-\d{4})?\b/.test(address) || /\bfl(?:orida)?\b/i.test(address) || address.split(",").length >= 3;
+}
+
+function dedupeStrings(values) {
+  const seen = {};
+  return values.filter((value) => {
+    const key = value.toLowerCase();
+    if (seen[key]) return false;
+    seen[key] = true;
+    return true;
+  });
 }
 
 function roundMiles(value) {
