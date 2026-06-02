@@ -48,8 +48,14 @@ function getQuery(req) {
 }
 
 function requireEnv(name) {
-  const value = process.env[name];
+  let value = process.env[name];
   if (!value) throw new Error(`Missing Vercel environment variable: ${name}`);
+  value = value.trim().replace(/^['"]|['"]$/g, "");
+
+  if (name === "MS_REFRESH_TOKEN" && value.startsWith("MS_REFRESH_TOKEN=")) {
+    value = value.slice("MS_REFRESH_TOKEN=".length).trim();
+  }
+
   return value;
 }
 
