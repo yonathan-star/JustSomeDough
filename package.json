@@ -1,0 +1,13 @@
+{
+  "name": "just-some-dough",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev",
+    "check": "node --check app.js && node --check api/orders.js && node --check scripts/microsoft-auth.js"
+  },
+  "devDependencies": {
+    "vercel": "^35.2.3"
+  }
+}

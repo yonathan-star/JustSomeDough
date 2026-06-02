@@ -1,4 +1,4 @@
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbySU6iZ_1rQoW02j3dMRl_qH2yDbEiB-uuzEqWaaLPyhY_PnaTbye5q4iwMt3byjrCRJg/exec";
+const ORDER_API_URL = "/api/orders";
 const BAKERY_LOCATION_LABEL = "where the bread is being baked";
 
 const products = [
@@ -201,7 +201,7 @@ function requestScript(payload) {
     payload.set("callback", callbackName);
     payload.set("_", Date.now().toString());
     script.async = true;
-    script.src = `${GOOGLE_SCRIPT_URL}?${payload.toString()}`;
+    script.src = `${ORDER_API_URL}?${payload.toString()}`;
     script.onerror = () => {
       cleanup();
       reject(new Error("Order submission failed."));
@@ -218,7 +218,7 @@ async function requestJson(payload) {
   const timeout = window.setTimeout(() => controller.abort(), 30000);
 
   try {
-    const response = await fetch(`${GOOGLE_SCRIPT_URL}?${requestPayload.toString()}`, {
+    const response = await fetch(`${ORDER_API_URL}?${requestPayload.toString()}`, {
       cache: "no-store",
       signal: controller.signal,
     });
@@ -268,7 +268,7 @@ function showPaymentModal(paymentMethod, total) {
 }
 
 async function submitOrderLegacy(payload) {
-  await fetch(GOOGLE_SCRIPT_URL, {
+  await fetch(ORDER_API_URL, {
     method: "POST",
     body: payload,
     mode: "no-cors",
@@ -405,9 +405,9 @@ orderForm.addEventListener("submit", async (event) => {
     return;
   }
 
-  if (!GOOGLE_SCRIPT_URL) {
+  if (!ORDER_API_URL) {
     formStatus.textContent =
-      "Order is ready, but the Google Apps Script URL has not been added to app.js yet.";
+      "Order is ready, but the order API URL has not been added to app.js yet.";
     return;
   }
 

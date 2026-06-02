@@ -3,3 +3,7 @@ preview-*.png
 .DS_Store
 Thumbs.db
 node_modules/
+.env
+.env.local
+microsoft-auth.out
+microsoft-auth.err

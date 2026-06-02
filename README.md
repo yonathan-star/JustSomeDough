@@ -1,29 +1,108 @@
 # Just Some Dough website
 
-This is a static preorder site for Just Some Dough. Open `index.html` in a browser to preview it.
+This is a static preorder site with a Vercel API that writes orders into an Excel workbook through Microsoft Graph.
 
-## Connect orders to Google Sheets
+## Excel workbook
 
-1. Create a Google Sheet for orders.
-2. In the Sheet, go to Extensions > Apps Script.
-3. Paste the contents of `google-apps-script.js`.
-4. Click Deploy > New deployment.
-5. Select Web app.
-6. Set "Execute as" to yourself.
-7. Set "Who has access" to Anyone.
-8. Deploy and copy the Web app URL.
-9. Open `app.js` and paste the URL into:
+Put the workbook in the OneDrive account that will own the orders.
 
-```js
-const GOOGLE_SCRIPT_URL = "PASTE_WEB_APP_URL_HERE";
+Create a real Excel table named `Orders` with these columns:
+
+```text
+SubmittedAt
+PickupDate
+Name
+Phone
+Email
+Fulfillment
+Items
+Total
+Notes
+Address
+DeliveryFee
+DeliveryMiles
+PaymentMethod
 ```
 
-Orders will be appended to the `Orders` tab and sorted by `Pickup Date`, then submission time. Pickup dates are shown as readable dates, such as `Sunday, May 31, 2026`.
+The old `AvailableWeeks` table is no longer required. The API automatically shows the next 8 Sundays.
 
-The Apps Script enforces a maximum of 40 orders for each Sunday pickup date. After editing `google-apps-script.js`, paste the updated script into Apps Script and deploy a new web app version so the live order limit is active.
+## Microsoft app setup
 
-The baker controls which weeks are open in the `Available Weeks` tab. Put each Sunday in `Pickup Date`, then set `Available` to `TRUE` or `FALSE`. The website only shows dates marked available.
+1. Go to `https://entra.microsoft.com`.
+2. Open `Applications > App registrations`.
+3. Create a new registration.
+4. Name it `JustSomeDough Orders`.
+5. For supported account types, choose:
+
+```text
+Accounts in any organizational directory and personal Microsoft accounts
+```
+
+6. Add this redirect URI as a Web redirect URI:
+
+```text
+http://localhost:53682/callback
+```
+
+7. Copy the Application client ID.
+8. Go to `Certificates & secrets`.
+9. Create a new client secret and copy the secret value immediately.
+
+## Get the refresh token
+
+In PowerShell, run:
+
+```powershell
+$env:MS_CLIENT_ID='PASTE_CLIENT_ID_HERE'
+$env:MS_CLIENT_SECRET='PASTE_CLIENT_SECRET_VALUE_HERE'
+node scripts/microsoft-auth.js
+```
+
+Open the URL printed in the terminal, sign in to the Microsoft account that owns the Excel file, and approve access.
+The terminal will print `MS_REFRESH_TOKEN`.
+
+## Vercel environment variables
+
+In Vercel, add these environment variables:
+
+```text
+MS_CLIENT_ID
+MS_CLIENT_SECRET
+MS_REFRESH_TOKEN
+MS_WORKBOOK_SHARE_URL
+```
+
+Set `MS_WORKBOOK_SHARE_URL` to the shared Excel URL, for example:
+
+```text
+https://posnack-my.sharepoint.com/:x:/r/personal/.../Doc.aspx?...&file=SourDough.xlsx
+```
+
+If the workbook is in your own OneDrive, you can use `MS_WORKBOOK_PATH` instead:
+
+```text
+Documents/JustSomeDough.xlsx
+```
+
+If you know the OneDrive file item ID, you can use `MS_WORKBOOK_ITEM_ID` instead.
+
+## Deploy
+
+Deploy this folder to Vercel. The website calls:
+
+```text
+/api/orders
+```
+
+Test these URLs after deploy:
+
+```text
+https://YOUR-VERCEL-DOMAIN.vercel.app/api/orders?action=availability
+https://YOUR-VERCEL-DOMAIN.vercel.app/api/orders?action=deliveryFee&deliveryAddress=1534%20Johnson%20St
+```
+
+Then submit a test order from the website and confirm it appears in the Excel `Orders` table.
 
 ## Updating products
 
-Edit the `products` array in `app.js` to change names, prices, descriptions, and photos. When individual product photos arrive, place them in this folder and update each product's `image` value.
+Edit the `products` array in `app.js` to change names, prices, descriptions, and photos.
