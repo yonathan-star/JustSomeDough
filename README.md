@@ -98,6 +98,13 @@ If the availability table is not named `AvailableWeeks`, add:
 MS_AVAILABILITY_TABLE_NAME
 ```
 
+The API also rebuilds a baker-friendly weekly summary on the `Orders` sheet starting at row 22. If the sheet is
+renamed, add:
+
+```text
+MS_BAKER_SHEET_NAME
+```
+
 ## Deploy
 
 Deploy this folder to Vercel. The website calls:

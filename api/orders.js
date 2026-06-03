@@ -3,6 +3,8 @@ const TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
 
 const ORDER_LIMIT_PER_WEEK = 40;
 const ROLLING_AVAILABLE_WEEKS = 8;
+const BAKER_SUMMARY_START_ROW = 22;
+const BAKER_SUMMARY_COLUMNS = 15;
 const BASE_DELIVERY_FEE = 5;
 const INCLUDED_DELIVERY_MILES = 21;
 const DELIVERY_FEE_PER_EXTRA_MILE = 1;
@@ -30,6 +32,10 @@ function getOrdersTableName() {
 
 function getAvailabilityTableName() {
   return (process.env.MS_AVAILABILITY_TABLE_NAME || "AvailableWeeks").trim();
+}
+
+function getBakerSheetName() {
+  return (process.env.MS_BAKER_SHEET_NAME || "Orders").trim();
 }
 
 function sendJson(res, statusCode, payload, callback) {
@@ -177,6 +183,32 @@ async function addTableRows(tableName, values) {
   });
 }
 
+async function getWorksheetIdByName(sheetName) {
+  const payload = await graphRequest(`${getWorkbookBasePath()}/workbook/worksheets`);
+  const worksheets = payload.value || [];
+  const target = sheetName.trim().toLowerCase();
+  const worksheet =
+    worksheets.find((item) => String(item.name || "").trim().toLowerCase() === target) ||
+    worksheets.find((item) => String(item.name || "").toLowerCase() === target);
+
+  if (!worksheet) {
+    throw new Error(`Could not find worksheet: ${sheetName}`);
+  }
+
+  return worksheet.id;
+}
+
+async function updateWorksheetValues(sheetName, address, values) {
+  const worksheetId = await getWorksheetIdByName(sheetName);
+  return graphRequest(
+    `${getWorkbookBasePath()}/workbook/worksheets/${encodeURIComponent(worksheetId)}/range(address='${address}')`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ values }),
+    },
+  );
+}
+
 async function refreshAvailabilityTable(dates) {
   const tableName = getAvailabilityTableName();
   const existingRows = await getTableRows(tableName);
@@ -194,6 +226,194 @@ async function refreshAvailabilityTable(dates) {
 function isBlankTableRow(row) {
   const values = row?.values?.[0] || [];
   return values.every((value) => String(value ?? "").trim() === "");
+}
+
+function getCell(rowValues, index) {
+  return rowValues?.[index] ?? "";
+}
+
+function parseOrderItems(items) {
+  const parsed = {
+    plain: 0,
+    chocolateChip: 0,
+    garlicRosemary: 0,
+    blueberryLemon: 0,
+    olive: 0,
+    custom: 0,
+    customText: "",
+    totalQuantity: 0,
+  };
+
+  String(items || "")
+    .split(";")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .forEach((item) => {
+      const match = item.match(/^(\d+(?:\.\d+)?)\s*x\s*(.+)$/i);
+      const quantity = match ? Number(match[1]) : 1;
+      const name = (match ? match[2] : item).trim();
+      const normalizedName = name.toLowerCase();
+
+      parsed.totalQuantity += quantity;
+
+      if (normalizedName.includes("regular") || normalizedName.includes("plain")) {
+        parsed.plain += quantity;
+      } else if (normalizedName.includes("chocolate") || normalizedName === "cc") {
+        parsed.chocolateChip += quantity;
+      } else if (normalizedName.includes("garlic") || normalizedName.includes("rosemary")) {
+        parsed.garlicRosemary += quantity;
+      } else if (normalizedName.includes("blueberry") || normalizedName.includes("lemon")) {
+        parsed.blueberryLemon += quantity;
+      } else if (normalizedName.includes("olive")) {
+        parsed.olive += quantity;
+      } else {
+        parsed.custom += quantity;
+        parsed.customText = parsed.customText ? `${parsed.customText}; ${item}` : item;
+      }
+    });
+
+  return parsed;
+}
+
+function asDisplayValue(value) {
+  if (value === 0 || value === "0") return "";
+  return value || "";
+}
+
+function buildBakerSummaryRows(dates, orderRows) {
+  const rows = [];
+  const ordersByDate = new Map();
+
+  orderRows
+    .filter((row) => !isBlankTableRow(row))
+    .forEach((row) => {
+      const values = row.values?.[0] || [];
+      const dateKey = getDateKey(getCell(values, 1));
+      if (!dateKey) return;
+
+      if (!ordersByDate.has(dateKey)) ordersByDate.set(dateKey, []);
+      ordersByDate.get(dateKey).push(values);
+    });
+
+  dates.forEach((date) => {
+    const weekOrders = (ordersByDate.get(date.value) || []).sort((a, b) =>
+      String(getCell(a, 0)).localeCompare(String(getCell(b, 0))),
+    );
+    const totals = {
+      plain: 0,
+      chocolateChip: 0,
+      garlicRosemary: 0,
+      blueberryLemon: 0,
+      olive: 0,
+      custom: 0,
+      quantity: 0,
+      money: 0,
+    };
+    const blank = Array(BAKER_SUMMARY_COLUMNS).fill("");
+
+    rows.push([date.value, ...Array(BAKER_SUMMARY_COLUMNS - 1).fill("")]);
+    rows.push([
+      "",
+      "Plain",
+      "CC",
+      "GR",
+      "BL",
+      "olive",
+      "Custom",
+      "QTY",
+      "Made",
+      "Paid",
+      "Payment",
+      "Notes",
+      "Address",
+      "Phone",
+      "Total $",
+    ]);
+
+    weekOrders.forEach((order) => {
+      const items = parseOrderItems(getCell(order, 6));
+      const total = Number(getCell(order, 7) || 0);
+
+      totals.plain += items.plain;
+      totals.chocolateChip += items.chocolateChip;
+      totals.garlicRosemary += items.garlicRosemary;
+      totals.blueberryLemon += items.blueberryLemon;
+      totals.olive += items.olive;
+      totals.custom += items.custom;
+      totals.quantity += items.totalQuantity;
+      totals.money += total;
+
+      rows.push([
+        getCell(order, 2),
+        asDisplayValue(items.plain),
+        asDisplayValue(items.chocolateChip),
+        asDisplayValue(items.garlicRosemary),
+        asDisplayValue(items.blueberryLemon),
+        asDisplayValue(items.olive),
+        items.customText,
+        asDisplayValue(items.totalQuantity),
+        "",
+        "",
+        getCell(order, 12),
+        getCell(order, 8),
+        getCell(order, 9),
+        getCell(order, 3),
+        asDisplayValue(total),
+      ]);
+    });
+
+    rows.push([
+      "QTY",
+      asDisplayValue(totals.plain),
+      asDisplayValue(totals.chocolateChip),
+      asDisplayValue(totals.garlicRosemary),
+      asDisplayValue(totals.blueberryLemon),
+      asDisplayValue(totals.olive),
+      asDisplayValue(totals.custom),
+      asDisplayValue(totals.quantity),
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+    ]);
+    rows.push([
+      "total $",
+      totals.plain ? totals.plain * 12 : "",
+      totals.chocolateChip ? totals.chocolateChip * 15 : "",
+      totals.garlicRosemary ? totals.garlicRosemary * 15 : "",
+      totals.blueberryLemon ? totals.blueberryLemon * 15 : "",
+      totals.olive ? totals.olive * 15 : "",
+      "",
+      "t sales",
+      asDisplayValue(totals.money),
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+    ]);
+    rows.push(blank);
+  });
+
+  return rows;
+}
+
+async function refreshBakerSummary(dates, orderRows) {
+  const values = buildBakerSummaryRows(dates, orderRows);
+  const clearRows = Math.max(350, values.length + 20);
+  const clearValues = Array.from({ length: clearRows }, () => Array(BAKER_SUMMARY_COLUMNS).fill(""));
+  const clearEndRow = BAKER_SUMMARY_START_ROW + clearRows - 1;
+  const writeEndRow = BAKER_SUMMARY_START_ROW + values.length - 1;
+
+  await updateWorksheetValues(getBakerSheetName(), `A${BAKER_SUMMARY_START_ROW}:O${clearEndRow}`, clearValues);
+
+  if (values.length) {
+    await updateWorksheetValues(getBakerSheetName(), `A${BAKER_SUMMARY_START_ROW}:O${writeEndRow}`, values);
+  }
 }
 
 async function removeBlankTableRows(tableName, rows) {
@@ -358,6 +578,8 @@ async function handleSubmitOrder(data) {
   }
 
   await addOrderRow({ ...data, preferredDate: pickupDate });
+  const refreshedRows = await getTableRows(ordersTableName);
+  await refreshBakerSummary(getRollingAvailability(), refreshedRows);
 
   return {
     ok: true,
@@ -383,6 +605,7 @@ export default async function handler(req, res) {
     if (data.action === "availability") {
       const dates = getRollingAvailability();
       await refreshAvailabilityTable(dates);
+      await refreshBakerSummary(dates, await getTableRows(getOrdersTableName()));
       sendJson(res, 200, { ok: true, dates }, data.callback);
       return;
     }
