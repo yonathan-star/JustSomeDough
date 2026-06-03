@@ -28,6 +28,10 @@ function getOrdersTableName() {
   return (process.env.MS_ORDERS_TABLE_NAME || "Orders").trim();
 }
 
+function getAvailabilityTableName() {
+  return (process.env.MS_AVAILABILITY_TABLE_NAME || "AvailableWeeks").trim();
+}
+
 function sendJson(res, statusCode, payload, callback) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
@@ -153,6 +157,54 @@ async function getTableRows(tableName) {
   }
 
   return rows;
+}
+
+async function deleteTableRows(tableName, rowCount) {
+  for (let index = rowCount - 1; index >= 0; index -= 1) {
+    await graphRequest(
+      `${getWorkbookBasePath()}/workbook/tables/${encodeURIComponent(tableName)}/rows/$/itemAt(index=${index})`,
+      { method: "DELETE" },
+    );
+  }
+}
+
+async function addTableRows(tableName, values) {
+  if (!values.length) return null;
+
+  return graphRequest(`${getWorkbookBasePath()}/workbook/tables/${encodeURIComponent(tableName)}/rows/add`, {
+    method: "POST",
+    body: JSON.stringify({ values }),
+  });
+}
+
+async function refreshAvailabilityTable(dates) {
+  const tableName = getAvailabilityTableName();
+  const existingRows = await getTableRows(tableName);
+
+  if (existingRows.length) {
+    await deleteTableRows(tableName, existingRows.length);
+  }
+
+  await addTableRows(
+    tableName,
+    dates.map((date) => [date.value, true]),
+  );
+}
+
+function isBlankTableRow(row) {
+  const values = row?.values?.[0] || [];
+  return values.every((value) => String(value ?? "").trim() === "");
+}
+
+async function removeBlankTableRows(tableName, rows) {
+  for (let index = rows.length - 1; index >= 0; index -= 1) {
+    if (isBlankTableRow(rows[index])) {
+      await graphRequest(
+        `${getWorkbookBasePath()}/workbook/tables/${encodeURIComponent(tableName)}/rows/$/itemAt(index=${index})`,
+        { method: "DELETE" },
+      );
+    }
+  }
 }
 
 async function addOrderRow(data) {
@@ -288,8 +340,13 @@ async function handleSubmitOrder(data) {
     if (!deliveryQuote.ok) return deliveryQuote;
   }
 
-  const rows = await getTableRows(getOrdersTableName());
-  const currentOrders = rows.filter((row) => getPickupDateFromRow(row) === pickupDate).length;
+  const ordersTableName = getOrdersTableName();
+  const rows = await getTableRows(ordersTableName);
+  await removeBlankTableRows(ordersTableName, rows);
+
+  const currentOrders = rows
+    .filter((row) => !isBlankTableRow(row))
+    .filter((row) => getPickupDateFromRow(row) === pickupDate).length;
   if (currentOrders >= ORDER_LIMIT_PER_WEEK) {
     return {
       ok: false,
@@ -324,7 +381,9 @@ export default async function handler(req, res) {
 
   try {
     if (data.action === "availability") {
-      sendJson(res, 200, { ok: true, dates: getRollingAvailability() }, data.callback);
+      const dates = getRollingAvailability();
+      await refreshAvailabilityTable(dates);
+      sendJson(res, 200, { ok: true, dates }, data.callback);
       return;
     }
 

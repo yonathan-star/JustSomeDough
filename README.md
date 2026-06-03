@@ -92,6 +92,12 @@ If the Excel table is not named `Orders`, add:
 MS_ORDERS_TABLE_NAME
 ```
 
+If the availability table is not named `AvailableWeeks`, add:
+
+```text
+MS_AVAILABILITY_TABLE_NAME
+```
+
 ## Deploy
 
 Deploy this folder to Vercel. The website calls:
