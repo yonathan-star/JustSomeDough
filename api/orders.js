@@ -288,7 +288,7 @@ function buildBakerSummaryRows(dates, orderRows) {
     .filter((row) => !isBlankTableRow(row))
     .forEach((row) => {
       const values = row.values?.[0] || [];
-      const dateKey = getDateKey(getCell(values, 1));
+      const dateKey = normalizeDateKey(getCell(values, 1));
       if (!dateKey) return;
 
       if (!ordersByDate.has(dateKey)) ordersByDate.set(dateKey, []);
