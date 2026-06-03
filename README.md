@@ -86,6 +86,12 @@ Documents/JustSomeDough.xlsx
 
 If you know the OneDrive file item ID, you can use `MS_WORKBOOK_ITEM_ID` instead.
 
+If the Excel table is not named `Orders`, add:
+
+```text
+MS_ORDERS_TABLE_NAME
+```
+
 ## Deploy
 
 Deploy this folder to Vercel. The website calls:

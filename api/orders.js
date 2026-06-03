@@ -24,6 +24,10 @@ const ORDER_COLUMNS = [
   "PaymentMethod",
 ];
 
+function getOrdersTableName() {
+  return (process.env.MS_ORDERS_TABLE_NAME || "Orders").trim();
+}
+
 function sendJson(res, statusCode, payload, callback) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
@@ -99,6 +103,10 @@ function encodeSharingUrl(url) {
 }
 
 function getWorkbookBasePath() {
+  if (process.env.MS_WORKBOOK_DRIVE_ID && process.env.MS_WORKBOOK_ITEM_ID) {
+    return `/drives/${encodeURIComponent(requireEnv("MS_WORKBOOK_DRIVE_ID"))}/items/${encodeURIComponent(requireEnv("MS_WORKBOOK_ITEM_ID"))}`;
+  }
+
   if (process.env.MS_WORKBOOK_SHARE_URL) {
     return `/shares/${encodeSharingUrl(process.env.MS_WORKBOOK_SHARE_URL)}/driveItem`;
   }
@@ -183,7 +191,7 @@ async function addOrderRow(data) {
     }),
   ];
 
-  return graphRequest(`${getWorkbookBasePath()}/workbook/tables/Orders/rows/add`, {
+  return graphRequest(`${getWorkbookBasePath()}/workbook/tables/${encodeURIComponent(getOrdersTableName())}/rows/add`, {
     method: "POST",
     body: JSON.stringify({ values }),
   });
@@ -280,7 +288,7 @@ async function handleSubmitOrder(data) {
     if (!deliveryQuote.ok) return deliveryQuote;
   }
 
-  const rows = await getTableRows("Orders");
+  const rows = await getTableRows(getOrdersTableName());
   const currentOrders = rows.filter((row) => getPickupDateFromRow(row) === pickupDate).length;
   if (currentOrders >= ORDER_LIMIT_PER_WEEK) {
     return {
