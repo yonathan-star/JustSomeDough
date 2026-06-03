@@ -42,6 +42,10 @@ function sendJson(res, statusCode, payload, callback) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  res.setHeader("Surrogate-Control", "no-store");
 
   if (callback && /^[A-Za-z_$][\w$]*$/.test(callback)) {
     res.setHeader("Content-Type", "application/javascript; charset=utf-8");
@@ -270,10 +274,11 @@ function getCell(rowValues, index) {
 }
 
 function isAvailabilityEnabled(value) {
+  if (value === true) return true;
   if (value === false) return false;
 
   const normalized = String(value ?? "").trim().toLowerCase();
-  return !["false", "no", "0", "closed", "unavailable"].includes(normalized);
+  return ["true", "yes", "1", "open", "available"].includes(normalized);
 }
 
 function parseOrderItems(items) {
