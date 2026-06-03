@@ -5,7 +5,6 @@ const ORDER_LIMIT_PER_WEEK = 40;
 const ROLLING_AVAILABLE_WEEKS = 8;
 const BAKER_SUMMARY_START_ROW = 22;
 const BAKER_SUMMARY_COLUMNS = 15;
-const BAKER_SUMMARY_CLEAR_EXTRA_ROWS = 0;
 const BASE_DELIVERY_FEE = 5;
 const INCLUDED_DELIVERY_MILES = 21;
 const DELIVERY_FEE_PER_EXTRA_MILE = 1;
@@ -325,7 +324,38 @@ function asDisplayValue(value) {
   return value || "";
 }
 
-function buildBakerSummaryRows(dates, orderRows, overflowByDate = new Map()) {
+function getSummaryOrderKey(dateKey, name, phone) {
+  return [dateKey, String(name || "").trim().toLowerCase(), String(phone || "").trim()].join("|");
+}
+
+function extractManualSummaryValues(summaryRows) {
+  const manualByOrder = new Map();
+  let currentDate = "";
+
+  summaryRows.forEach((row) => {
+    const dateKey = normalizeDateKey(row?.[0]);
+    if (dateKey) {
+      currentDate = dateKey;
+      return;
+    }
+
+    if (!currentDate) return;
+
+    const name = String(row?.[0] || "").trim();
+    if (!name || ["qty", "total $"].includes(name.toLowerCase())) return;
+
+    const phone = row?.[13] || "";
+    const made = row?.[8] ?? "";
+    const paid = row?.[9] ?? "";
+    if (made === "" && paid === "") return;
+
+    manualByOrder.set(getSummaryOrderKey(currentDate, name, phone), { made, paid });
+  });
+
+  return manualByOrder;
+}
+
+function buildBakerSummaryRows(dates, orderRows, overflowByDate = new Map(), manualByOrder = new Map()) {
   const rows = [];
   const ordersByDate = new Map();
 
@@ -403,8 +433,8 @@ function buildBakerSummaryRows(dates, orderRows, overflowByDate = new Map()) {
         asDisplayValue(items.olive),
         items.customText,
         asDisplayValue(items.totalQuantity),
-        "",
-        "",
+        manualByOrder.get(getSummaryOrderKey(date.value, getCell(order, 2), getCell(order, 3)))?.made || "",
+        manualByOrder.get(getSummaryOrderKey(date.value, getCell(order, 2), getCell(order, 3)))?.paid || "",
         getCell(order, 12),
         getCell(order, 8),
         getCell(order, 9),
@@ -475,16 +505,11 @@ async function getOverflowCounts() {
 }
 
 async function refreshBakerSummary(dates, orderRows, overflowByDate) {
-  const counts = overflowByDate || (await getOverflowCounts());
-  const values = buildBakerSummaryRows(dates, orderRows, counts);
-  const clearRows = Math.max(values.length + BAKER_SUMMARY_CLEAR_EXTRA_ROWS, values.length);
-  const clearValues = Array.from({ length: clearRows }, () => Array(BAKER_SUMMARY_COLUMNS).fill(""));
-  const clearEndRow = BAKER_SUMMARY_START_ROW + clearRows - 1;
+  const existingRows = await getWorksheetValues(getBakerSheetName(), `A${BAKER_SUMMARY_START_ROW}:O250`);
+  const counts = overflowByDate || extractOverflowCounts(existingRows);
+  const manualByOrder = extractManualSummaryValues(existingRows);
+  const values = buildBakerSummaryRows(dates, orderRows, counts, manualByOrder);
   const writeEndRow = BAKER_SUMMARY_START_ROW + values.length - 1;
-
-  if (clearRows) {
-    await updateWorksheetValues(getBakerSheetName(), `A${BAKER_SUMMARY_START_ROW}:O${clearEndRow}`, clearValues);
-  }
 
   if (values.length) {
     await updateWorksheetValues(getBakerSheetName(), `A${BAKER_SUMMARY_START_ROW}:O${writeEndRow}`, values);
@@ -704,6 +729,16 @@ async function handleSubmitOrder(data) {
     currentLoaves: currentLoaves + requestedLoaves,
   };
 }
+
+export const __test__ = {
+  buildBakerSummaryRows,
+  extractManualSummaryValues,
+  extractOverflowCounts,
+  getLoavesByDate,
+  getOpenWeeks,
+  getRequestedLoafCount,
+  parseOrderItems,
+};
 
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") {
