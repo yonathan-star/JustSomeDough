@@ -278,9 +278,10 @@ async function submitOrderLegacy(payload) {
 }
 
 function renderAvailability(dates) {
+  const availableDates = dates.filter((date) => date.available !== false);
   pickupDateSelect.innerHTML = "";
 
-  if (!dates.length) {
+  if (!availableDates.length) {
     pickupDateSelect.innerHTML = `<option value="">No available pickup weeks</option>`;
     pickupDateSelect.disabled = true;
     formStatus.textContent = "No pickup weeks are available right now.";
@@ -288,7 +289,7 @@ function renderAvailability(dates) {
   }
 
   pickupDateSelect.disabled = false;
-  pickupDateSelect.innerHTML = dates
+  pickupDateSelect.innerHTML = availableDates
     .map((date) => `<option value="${date.value}">${date.label}</option>`)
     .join("");
 }

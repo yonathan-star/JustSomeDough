@@ -5,6 +5,7 @@ const ORDER_LIMIT_PER_WEEK = 40;
 const ROLLING_AVAILABLE_WEEKS = 8;
 const BAKER_SUMMARY_START_ROW = 22;
 const BAKER_SUMMARY_COLUMNS = 15;
+const BAKER_SUMMARY_CLEAR_EXTRA_ROWS = 0;
 const BASE_DELIVERY_FEE = 5;
 const INCLUDED_DELIVERY_MILES = 21;
 const DELIVERY_FEE_PER_EXTRA_MILE = 1;
@@ -212,6 +213,21 @@ async function updateWorksheetValues(sheetName, address, values) {
 async function refreshAvailabilityTable(dates) {
   const tableName = getAvailabilityTableName();
   const existingRows = await getTableRows(tableName);
+  const availabilityByDate = new Map();
+
+  existingRows
+    .filter((row) => !isBlankTableRow(row))
+    .forEach((row) => {
+      const values = row.values?.[0] || [];
+      const dateKey = normalizeDateKey(values[0]);
+      if (!dateKey) return;
+      availabilityByDate.set(dateKey, isAvailabilityEnabled(values[1]));
+    });
+
+  const refreshedDates = dates.map((date) => ({
+    ...date,
+    available: availabilityByDate.has(date.value) ? availabilityByDate.get(date.value) : true,
+  }));
 
   if (existingRows.length) {
     await deleteTableRows(tableName, existingRows.length);
@@ -219,8 +235,10 @@ async function refreshAvailabilityTable(dates) {
 
   await addTableRows(
     tableName,
-    dates.map((date) => [date.value, true]),
+    refreshedDates.map((date) => [date.value, date.available]),
   );
+
+  return refreshedDates;
 }
 
 function isBlankTableRow(row) {
@@ -230,6 +248,13 @@ function isBlankTableRow(row) {
 
 function getCell(rowValues, index) {
   return rowValues?.[index] ?? "";
+}
+
+function isAvailabilityEnabled(value) {
+  if (value === false) return false;
+
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return !["false", "no", "0", "closed", "unavailable"].includes(normalized);
 }
 
 function parseOrderItems(items) {
@@ -404,12 +429,14 @@ function buildBakerSummaryRows(dates, orderRows) {
 
 async function refreshBakerSummary(dates, orderRows) {
   const values = buildBakerSummaryRows(dates, orderRows);
-  const clearRows = Math.max(350, values.length + 20);
+  const clearRows = Math.max(values.length + BAKER_SUMMARY_CLEAR_EXTRA_ROWS, values.length);
   const clearValues = Array.from({ length: clearRows }, () => Array(BAKER_SUMMARY_COLUMNS).fill(""));
   const clearEndRow = BAKER_SUMMARY_START_ROW + clearRows - 1;
   const writeEndRow = BAKER_SUMMARY_START_ROW + values.length - 1;
 
-  await updateWorksheetValues(getBakerSheetName(), `A${BAKER_SUMMARY_START_ROW}:O${clearEndRow}`, clearValues);
+  if (clearRows) {
+    await updateWorksheetValues(getBakerSheetName(), `A${BAKER_SUMMARY_START_ROW}:O${clearEndRow}`, clearValues);
+  }
 
   if (values.length) {
     await updateWorksheetValues(getBakerSheetName(), `A${BAKER_SUMMARY_START_ROW}:O${writeEndRow}`, values);
@@ -546,7 +573,8 @@ async function handleSubmitOrder(data) {
     return { ok: false, error: "Choose a valid pickup date." };
   }
 
-  const availableDates = new Set(getRollingAvailability().map((date) => date.value));
+  const availability = await refreshAvailabilityTable(getRollingAvailability());
+  const availableDates = new Set(availability.filter((date) => date.available).map((date) => date.value));
   if (!availableDates.has(pickupDate)) {
     return {
       ok: false,
@@ -579,7 +607,7 @@ async function handleSubmitOrder(data) {
 
   await addOrderRow({ ...data, preferredDate: pickupDate });
   const refreshedRows = await getTableRows(ordersTableName);
-  await refreshBakerSummary(getRollingAvailability(), refreshedRows);
+  await refreshBakerSummary(availability, refreshedRows);
 
   return {
     ok: true,
@@ -603,8 +631,7 @@ export default async function handler(req, res) {
 
   try {
     if (data.action === "availability") {
-      const dates = getRollingAvailability();
-      await refreshAvailabilityTable(dates);
+      const dates = await refreshAvailabilityTable(getRollingAvailability());
       await refreshBakerSummary(dates, await getTableRows(getOrdersTableName()));
       sendJson(res, 200, { ok: true, dates }, data.callback);
       return;
