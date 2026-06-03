@@ -210,6 +210,15 @@ async function updateWorksheetValues(sheetName, address, values) {
   );
 }
 
+async function getWorksheetValues(sheetName, address) {
+  const worksheetId = await getWorksheetIdByName(sheetName);
+  const payload = await graphRequest(
+    `${getWorkbookBasePath()}/workbook/worksheets/${encodeURIComponent(worksheetId)}/range(address='${address}')`,
+  );
+
+  return payload.values || [];
+}
+
 async function refreshAvailabilityTable(dates) {
   const tableName = getAvailabilityTableName();
   const existingRows = await getTableRows(tableName);
@@ -228,6 +237,17 @@ async function refreshAvailabilityTable(dates) {
     ...date,
     available: availabilityByDate.has(date.value) ? availabilityByDate.get(date.value) : true,
   }));
+  const existingValues = existingRows
+    .filter((row) => !isBlankTableRow(row))
+    .map((row) => row.values?.[0] || []);
+  const alreadyMatches =
+    existingValues.length === refreshedDates.length &&
+    refreshedDates.every((date, index) => {
+      const row = existingValues[index] || [];
+      return normalizeDateKey(row[0]) === date.value && isAvailabilityEnabled(row[1]) === date.available;
+    });
+
+  if (alreadyMatches) return refreshedDates;
 
   if (existingRows.length) {
     await deleteTableRows(tableName, existingRows.length);
@@ -305,7 +325,7 @@ function asDisplayValue(value) {
   return value || "";
 }
 
-function buildBakerSummaryRows(dates, orderRows) {
+function buildBakerSummaryRows(dates, orderRows, overflowByDate = new Map()) {
   const rows = [];
   const ordersByDate = new Map();
 
@@ -336,7 +356,13 @@ function buildBakerSummaryRows(dates, orderRows) {
     };
     const blank = Array(BAKER_SUMMARY_COLUMNS).fill("");
 
-    rows.push([date.value, ...Array(BAKER_SUMMARY_COLUMNS - 1).fill("")]);
+    rows.push([
+      date.value,
+      ...Array(BAKER_SUMMARY_COLUMNS - 4).fill(""),
+      "Overflow loaves",
+      asDisplayValue(overflowByDate.get(date.value) || 0),
+      "",
+    ]);
     rows.push([
       "",
       "Plain",
@@ -427,8 +453,30 @@ function buildBakerSummaryRows(dates, orderRows) {
   return rows;
 }
 
-async function refreshBakerSummary(dates, orderRows) {
-  const values = buildBakerSummaryRows(dates, orderRows);
+function extractOverflowCounts(summaryRows) {
+  const overflowByDate = new Map();
+
+  summaryRows.forEach((row) => {
+    const dateKey = normalizeDateKey(row?.[0]);
+    if (!dateKey) return;
+
+    const overflowCount = Number(row?.[13] || 0);
+    if (Number.isFinite(overflowCount) && overflowCount > 0) {
+      overflowByDate.set(dateKey, overflowCount);
+    }
+  });
+
+  return overflowByDate;
+}
+
+async function getOverflowCounts() {
+  const rows = await getWorksheetValues(getBakerSheetName(), `A${BAKER_SUMMARY_START_ROW}:O250`);
+  return extractOverflowCounts(rows);
+}
+
+async function refreshBakerSummary(dates, orderRows, overflowByDate) {
+  const counts = overflowByDate || (await getOverflowCounts());
+  const values = buildBakerSummaryRows(dates, orderRows, counts);
   const clearRows = Math.max(values.length + BAKER_SUMMARY_CLEAR_EXTRA_ROWS, values.length);
   const clearValues = Array.from({ length: clearRows }, () => Array(BAKER_SUMMARY_COLUMNS).fill(""));
   const clearEndRow = BAKER_SUMMARY_START_ROW + clearRows - 1;
@@ -441,6 +489,41 @@ async function refreshBakerSummary(dates, orderRows) {
   if (values.length) {
     await updateWorksheetValues(getBakerSheetName(), `A${BAKER_SUMMARY_START_ROW}:O${writeEndRow}`, values);
   }
+}
+
+function getLoafCountFromOrderValues(values) {
+  return parseOrderItems(getCell(values, 6)).totalQuantity;
+}
+
+function getRequestedLoafCount(data) {
+  const count = parseOrderItems(data.items).totalQuantity;
+  return count > 0 ? count : 1;
+}
+
+function getLoavesByDate(rows) {
+  const loavesByDate = new Map();
+
+  rows
+    .filter((row) => !isBlankTableRow(row))
+    .forEach((row) => {
+      const values = row.values?.[0] || [];
+      const dateKey = normalizeDateKey(getCell(values, 1));
+      if (!dateKey) return;
+      loavesByDate.set(dateKey, (loavesByDate.get(dateKey) || 0) + getLoafCountFromOrderValues(values));
+    });
+
+  return loavesByDate;
+}
+
+function getOpenWeeks(availability, loavesByDate, requestedLoaves = 1) {
+  return availability
+    .filter((date) => date.available)
+    .map((date) => ({
+      ...date,
+      currentLoaves: loavesByDate.get(date.value) || 0,
+      remainingLoaves: Math.max(ORDER_LIMIT_PER_WEEK - (loavesByDate.get(date.value) || 0), 0),
+    }))
+    .filter((date) => date.remainingLoaves >= requestedLoaves);
 }
 
 async function removeBlankTableRows(tableName, rows) {
@@ -592,16 +675,22 @@ async function handleSubmitOrder(data) {
   const rows = await getTableRows(ordersTableName);
   await removeBlankTableRows(ordersTableName, rows);
 
-  const currentOrders = rows
-    .filter((row) => !isBlankTableRow(row))
-    .filter((row) => getPickupDateFromRow(row) === pickupDate).length;
-  if (currentOrders >= ORDER_LIMIT_PER_WEEK) {
+  const loavesByDate = getLoavesByDate(rows);
+  const requestedLoaves = getRequestedLoafCount(data);
+  const currentLoaves = loavesByDate.get(pickupDate) || 0;
+  if (currentLoaves + requestedLoaves > ORDER_LIMIT_PER_WEEK) {
+    const overflowByDate = await getOverflowCounts();
+    overflowByDate.set(pickupDate, (overflowByDate.get(pickupDate) || 0) + requestedLoaves);
+    await refreshBakerSummary(availability, rows, overflowByDate);
+
     return {
       ok: false,
-      error: "This pickup week is full. Please choose another Sunday.",
+      error: "This pickup week is full. Please choose another available Sunday.",
       code: "WEEK_FULL",
       limit: ORDER_LIMIT_PER_WEEK,
-      currentOrders,
+      currentLoaves,
+      requestedLoaves,
+      availableWeeks: getOpenWeeks(availability, loavesByDate, requestedLoaves),
     };
   }
 
@@ -612,7 +701,7 @@ async function handleSubmitOrder(data) {
   return {
     ok: true,
     limit: ORDER_LIMIT_PER_WEEK,
-    currentOrders: currentOrders + 1,
+    currentLoaves: currentLoaves + requestedLoaves,
   };
 }
 
@@ -632,7 +721,6 @@ export default async function handler(req, res) {
   try {
     if (data.action === "availability") {
       const dates = await refreshAvailabilityTable(getRollingAvailability());
-      await refreshBakerSummary(dates, await getTableRows(getOrdersTableName()));
       sendJson(res, 200, { ok: true, dates }, data.callback);
       return;
     }

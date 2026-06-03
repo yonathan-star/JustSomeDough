@@ -294,6 +294,15 @@ function renderAvailability(dates) {
     .join("");
 }
 
+function getWeekFullMessage(response) {
+  const weeks = response.availableWeeks || [];
+  const weekList = weeks.length
+    ? weeks.map((week) => `${week.label} (${week.remainingLoaves} spots left)`).join("\n")
+    : "No other pickup weeks have space right now.";
+
+  return `That pickup week is full.\n\nAvailable weeks:\n${weekList}`;
+}
+
 async function setAvailableDates() {
   pickupDateSelect.innerHTML = `<option value="">Loading available weeks...</option>`;
   pickupDateSelect.disabled = true;
@@ -427,6 +436,14 @@ orderForm.addEventListener("submit", async (event) => {
     }
 
     if (!response.ok) {
+      if (response.code === "WEEK_FULL") {
+        const message = getWeekFullMessage(response);
+        window.alert(message);
+        formStatus.textContent = "That pickup week is full. Please choose another available week.";
+        await setAvailableDates();
+        return;
+      }
+
       formStatus.textContent = response.error || "Could not submit the order. Please try another pickup date.";
       return;
     }
