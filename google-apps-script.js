@@ -1,6 +1,6 @@
 const SHEET_NAME = "Orders";
 const AVAILABILITY_SHEET_NAME = "Available Weeks";
-const MAX_ORDERS_PER_WEEK = 40;
+const MAX_ORDERS_PER_WEEK = 60;
 const ROLLING_AVAILABLE_WEEKS = 8;
 const BAKERY_ADDRESS = "2960 Birch Terrace, Davie, FL 33330";
 const DELIVERY_ADDRESS_CONTEXT = "Broward County, FL";

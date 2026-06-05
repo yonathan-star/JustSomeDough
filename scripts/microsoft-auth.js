@@ -5,7 +5,7 @@ const PORT = 53682;
 const REDIRECT_URI = `http://localhost:${PORT}/callback`;
 const AUTH_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize";
 const TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
-const SCOPES = "offline_access Files.ReadWrite User.Read";
+const SCOPES = "offline_access Files.ReadWrite User.Read Mail.Send";
 
 const clientId = process.env.MS_CLIENT_ID;
 const clientSecret = process.env.MS_CLIENT_SECRET;

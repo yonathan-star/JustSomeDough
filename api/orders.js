@@ -2,7 +2,7 @@ const GRAPH_BASE_URL = "https://graph.microsoft.com/v1.0";
 const TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
 import { quoteDelivery as quoteDeliveryFromModule } from "../scripts/delivery-quote-core.mjs";
 
-const ORDER_LIMIT_PER_WEEK = 40;
+const ORDER_LIMIT_PER_WEEK = 60;
 const ROLLING_AVAILABLE_WEEKS = 8;
 const BAKER_SUMMARY_START_ROW = 22;
 const BAKER_SUMMARY_COLUMNS = 15;
@@ -91,7 +91,7 @@ async function getAccessToken() {
     client_secret: requireEnv("MS_CLIENT_SECRET"),
     refresh_token: requireEnv("MS_REFRESH_TOKEN"),
     grant_type: "refresh_token",
-    scope: "offline_access Files.ReadWrite User.Read",
+    scope: "offline_access Files.ReadWrite User.Read Mail.Send",
   });
 
   const response = await fetch(TOKEN_URL, {
@@ -656,11 +656,14 @@ async function refreshBakerSummary(dates, orderRows, overflowByDate) {
   const counts = overflowByDate || extractOverflowCounts(existingRows);
   const manualByOrder = extractManualSummaryValues(existingRows);
   const values = buildBakerSummaryRows(dates, orderRows, counts, manualByOrder);
-  const writeEndRow = BAKER_SUMMARY_START_ROW + values.length - 1;
 
-  if (values.length) {
-    await updateWorksheetValues(getBakerSheetName(), `A${BAKER_SUMMARY_START_ROW}:O${writeEndRow}`, values);
-  }
+  // Pad with blank rows up to row 250 so stale data from previous larger summaries is cleared
+  const blank = Array(BAKER_SUMMARY_COLUMNS).fill("");
+  const totalRows = 250 - BAKER_SUMMARY_START_ROW + 1;
+  const paddedValues = values.slice();
+  while (paddedValues.length < totalRows) paddedValues.push(blank);
+
+  await updateWorksheetValues(getBakerSheetName(), `A${BAKER_SUMMARY_START_ROW}:O250`, paddedValues);
 }
 
 function getLoafCountFromOrderValues(values) {
@@ -872,6 +875,31 @@ async function getDeliveryQuote(deliveryAddress) {
   return calculateDeliveryQuote(deliveryAddress);
 }
 
+async function sendOrderSmsNotification(data, pickupDate) {
+  const notifyAddress = (process.env.SMS_NOTIFY_ADDRESS || "").trim();
+  if (!notifyAddress) return;
+
+  const name = data.name || "Unknown";
+  const items = data.items || "—";
+  const fulfillment = data.fulfillment || "";
+  const total = data.total ? `$${data.total}` : "";
+  const phone = data.phone || "";
+
+  const body = [name, items, fulfillment, pickupDate, total, phone].filter(Boolean).join(" | ");
+
+  await graphRequest("/me/sendMail", {
+    method: "POST",
+    body: JSON.stringify({
+      message: {
+        subject: "New Dough Order",
+        body: { contentType: "Text", content: body.slice(0, 160) },
+        toRecipients: [{ emailAddress: { address: notifyAddress } }],
+      },
+      saveToSentItems: false,
+    }),
+  });
+}
+
 async function handleSubmitOrder(data, deliveryQuote = null) {
   const pickupDate = normalizeDateKey(data.preferredDate);
   if (!pickupDate) {
@@ -917,6 +945,13 @@ async function handleSubmitOrder(data, deliveryQuote = null) {
   }
 
   await addOrderRow({ ...data, preferredDate: pickupDate });
+
+  try {
+    await sendOrderSmsNotification(data, pickupDate);
+  } catch (_) {
+    // Non-fatal: don't fail the order if the SMS notification fails
+  }
+
   const refreshedRows = await getTableRows(ordersTableName);
   await refreshBakerSummary(availability, refreshedRows);
 
@@ -961,7 +996,15 @@ export default async function handler(req, res) {
 
   try {
     if (data.action === "availability") {
-      const dates = await refreshAvailabilityTable(getRollingAvailability());
+      const rollingDates = getRollingAvailability();
+      const dates = await refreshAvailabilityTable(rollingDates);
+      // Refresh baker summary so manually-added Excel orders appear in week totals
+      try {
+        const orderRows = await getTableRows(getOrdersTableName());
+        await refreshBakerSummary(dates, orderRows);
+      } catch (_) {
+        // Non-fatal: don't block availability response if summary refresh fails
+      }
       sendJson(res, 200, { ok: true, dates }, data.callback);
       return;
     }
