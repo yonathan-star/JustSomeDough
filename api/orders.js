@@ -17,6 +17,7 @@ const OSRM_ROUTE_URL = "https://router.project-osrm.org/route/v1/driving";
 
 const geocodeCache = new Map();
 let bakeryLocationPromise = null;
+let _tokenCache = { value: null, expiresAt: 0 };
 
 const ORDER_COLUMNS = [
   "SubmittedAt",
@@ -86,6 +87,10 @@ function requireEnv(name) {
 }
 
 async function getAccessToken() {
+  if (_tokenCache.value && Date.now() < _tokenCache.expiresAt - 30000) {
+    return _tokenCache.value;
+  }
+
   const body = new URLSearchParams({
     client_id: requireEnv("MS_CLIENT_ID"),
     client_secret: requireEnv("MS_CLIENT_SECRET"),
@@ -105,7 +110,8 @@ async function getAccessToken() {
     throw new Error(payload.error_description || payload.error || "Could not refresh Microsoft access token.");
   }
 
-  return payload.access_token;
+  _tokenCache = { value: payload.access_token, expiresAt: Date.now() + (payload.expires_in || 3600) * 1000 };
+  return _tokenCache.value;
 }
 
 function encodeWorkbookPath(path) {
@@ -875,6 +881,25 @@ async function getDeliveryQuote(deliveryAddress) {
   return calculateDeliveryQuote(deliveryAddress);
 }
 
+async function readAvailabilityState(rollingDates) {
+  const existingRows = await getTableRows(getAvailabilityTableName());
+  const availabilityByDate = new Map();
+
+  existingRows
+    .filter((row) => !isBlankTableRow(row))
+    .forEach((row) => {
+      const values = row.values?.[0] || [];
+      const dateKey = normalizeDateKey(values[0]);
+      if (!dateKey) return;
+      availabilityByDate.set(dateKey, isAvailabilityEnabled(values[1]));
+    });
+
+  return rollingDates.map((date) => ({
+    ...date,
+    available: availabilityByDate.has(date.value) ? availabilityByDate.get(date.value) : true,
+  }));
+}
+
 async function sendOrderSmsNotification(data, pickupDate) {
   const notifyAddress = (process.env.SMS_NOTIFY_ADDRESS || "").trim();
   if (!notifyAddress) return;
@@ -906,7 +931,9 @@ async function handleSubmitOrder(data, deliveryQuote = null) {
     return { ok: false, error: "Choose a valid pickup date." };
   }
 
-  const availability = await refreshAvailabilityTable(getRollingAvailability());
+  // Read-only availability check — page load already refreshed it, no need to rewrite here
+  const rollingDates = getRollingAvailability();
+  const availability = await readAvailabilityState(rollingDates);
   const availableDates = new Set(availability.filter((date) => date.available).map((date) => date.value));
   if (!availableDates.has(pickupDate)) {
     return {
@@ -923,7 +950,6 @@ async function handleSubmitOrder(data, deliveryQuote = null) {
 
   const ordersTableName = getOrdersTableName();
   const rows = await getTableRows(ordersTableName);
-  await removeBlankTableRows(ordersTableName, rows);
 
   const loavesByDate = getLoavesByDate(rows);
   const requestedLoaves = getRequestedLoafCount(data);
@@ -946,14 +972,21 @@ async function handleSubmitOrder(data, deliveryQuote = null) {
 
   await addOrderRow({ ...data, preferredDate: pickupDate });
 
-  try {
-    await sendOrderSmsNotification(data, pickupDate);
-  } catch (_) {
-    // Non-fatal: don't fail the order if the SMS notification fails
-  }
+  // Fire-and-forget SMS — don't make the customer wait for it
+  sendOrderSmsNotification(data, pickupDate).catch(() => {});
 
-  const refreshedRows = await getTableRows(ordersTableName);
-  await refreshBakerSummary(availability, refreshedRows);
+  // Build updated rows from what we already have — avoids a second getTableRows fetch
+  const newRow = {
+    values: [[
+      new Date().toISOString(), pickupDate,
+      data.name || "", data.phone || "", data.email || "",
+      data.fulfillment || "", data.items || "", Number(data.total || 0),
+      data.notes || "", data.deliveryAddress || "",
+      Number(data.deliveryFee || 0), data.deliveryMiles ? Number(data.deliveryMiles) : "",
+      data.paymentMethod || "",
+    ]],
+  };
+  await refreshBakerSummary(availability, [...rows, newRow]);
 
   return {
     ok: true,

@@ -421,6 +421,17 @@ orderForm.addEventListener("submit", async (event) => {
     return;
   }
 
+  const submitButton = orderForm.querySelector(".submit-button");
+  const originalButtonText = submitButton ? submitButton.textContent : "";
+
+  function lockSubmit() {
+    if (submitButton) { submitButton.disabled = true; submitButton.textContent = "Submitting..."; }
+  }
+  function unlockSubmit() {
+    if (submitButton) { submitButton.disabled = false; submitButton.textContent = originalButtonText; }
+  }
+
+  lockSubmit();
   formStatus.textContent = "Submitting order...";
 
   try {
@@ -436,6 +447,7 @@ orderForm.addEventListener("submit", async (event) => {
     }
 
     if (!response.ok) {
+      unlockSubmit();
       if (response.code === "WEEK_FULL") {
         const message = getWeekFullMessage(response);
         window.alert(message);
@@ -450,11 +462,13 @@ orderForm.addEventListener("submit", async (event) => {
 
     orderForm.reset();
     cart.clear();
+    unlockSubmit();
     await setAvailableDates();
     updateCart();
     formStatus.textContent = "Order submitted. The baker will confirm shortly.";
     showPaymentModal(paymentMethod, total);
   } catch (error) {
+    unlockSubmit();
     formStatus.textContent = "Could not submit the order. Please try again or text the baker.";
   }
 });
